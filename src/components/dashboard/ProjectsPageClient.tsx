@@ -96,7 +96,7 @@ import {
 } from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
 import { id as IndonesianLocale, enUS as EnglishLocale } from 'date-fns/locale';
-import { addFilesToProject as addFilesToProjectService } from '@/services/project-service';
+import { getAllProjects, addFilesToProject as addFilesToProjectService } from '@/services/project-service';
 import { API_BASE_URL } from '@/config/api-config';
 
 
@@ -137,11 +137,21 @@ interface UploadDialogState {
   division: string | null;
 }
 
-interface ProjectsPageClientProps {
-    initialProjects: Project[];
+function ProjectsPageSkeleton() {
+    return (
+        <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
+            <Card className="shadow-md animate-pulse">
+                <CardHeader className="p-4 sm:p-6"><Skeleton className="h-7 w-3/5 mb-2" /><Skeleton className="h-4 w-4/5" /></CardHeader>
+                <CardContent className="p-4 sm:p-6 pt-0">
+                    <div className="flex justify-end mb-4"><Skeleton className="h-10 w-32" /></div>
+                    <div className="space-y-4">{[...Array(3)].map((_, i) => (<Card key={`project-skel-${i}`} className="opacity-50 border-muted/50"><CardHeader className="flex flex-col sm:flex-row items-start justify-between space-y-2 sm:space-y-0 pb-2 p-4 sm:p-6"><div><Skeleton className="h-5 w-3/5 mb-1" /><Skeleton className="h-3 w-4/5" /></div><div className="flex-shrink-0 mt-2 sm:mt-0"><Skeleton className="h-5 w-20 rounded-full" /></div></CardHeader><CardContent className="p-4 sm:p-6 pt-0"><div className="flex items-center gap-2"><Skeleton className="flex-1 h-2" /><Skeleton className="h-3 w-1/4" /></div></CardContent></Card>))}</div>
+                </CardContent>
+            </Card>
+        </div>
+    );
 }
 
-export default function ProjectsPageClient({ initialProjects }: ProjectsPageClientProps) {
+export default function ProjectsPageClient() {
   const { toast } = useToast();
   const { language } = useLanguage();
   const { currentUser } = useAuth();
@@ -153,9 +163,8 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   const dashboardDict = React.useMemo(() => dict.dashboardPage, [dict]);
   const settingsDict = React.useMemo(() => dict.settingsPage, [dict]);
 
-
-  const [allProjects, setAllProjects] = React.useState<Project[]>(initialProjects);
-  const [isLoadingProjects, setIsLoadingProjects] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [allProjects, setAllProjects] = React.useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = React.useState<Project | null>(null);
 
   const [description, setDescription] = React.useState('');
@@ -208,28 +217,24 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   
   const [uploadDialogState, setUploadDialogState] = React.useState<UploadDialogState>({ isOpen: false, item: null, division: null });
 
-  const [isClient, setIsClient] = React.useState(false);
-  React.useEffect(() => { setIsClient(true); }, []);
-
-
   const projectIdFromUrl = searchParams.get('projectId');
 
   const fetchAllProjects = React.useCallback(async () => {
-    setIsLoadingProjects(true);
+    setIsLoading(true);
     try {
-        const response = await fetch(`${API_BASE_URL}/api/projects`);
-        if (!response.ok) {
-            throw new Error('Failed to fetch projects');
-        }
-        const data = await response.json();
+        const data = await getAllProjects();
         setAllProjects(data);
     } catch (error) {
         console.error("Failed to fetch projects:", error);
         toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.couldNotLoadProjects });
     } finally {
-        setIsLoadingProjects(false);
+        setIsLoading(false);
     }
   }, [toast, projectsDict.toast.error, projectsDict.toast.couldNotLoadProjects]);
+
+  React.useEffect(() => {
+    fetchAllProjects();
+  }, [fetchAllProjects]);
 
   React.useEffect(() => {
     const handleDataRefresh = () => {
@@ -1366,18 +1371,8 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
       return selectedProject.status === 'Pending Final Documents' && canTakeAction;
     }, [selectedProject, currentUser]);
 
-  if (!isClient) {
-    return (
-        <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
-            <Card className="shadow-md animate-pulse">
-                <CardHeader className="p-4 sm:p-6"><Skeleton className="h-7 w-3/5 mb-2" /><Skeleton className="h-4 w-4/5" /></CardHeader>
-                <CardContent className="p-4 sm:p-6 pt-0">
-                    <div className="flex justify-end mb-4"><Skeleton className="h-10 w-32" /></div>
-                    <div className="space-y-4">{[...Array(3)].map((_, i) => (<Card key={`project-skel-${i}`} className="opacity-50 border-muted/50"><CardHeader className="flex flex-col sm:flex-row items-start justify-between space-y-2 sm:space-y-0 pb-2 p-4 sm:p-6"><div><Skeleton className="h-5 w-3/5 mb-1" /><Skeleton className="h-3 w-4/5" /></div><div className="flex-shrink-0 mt-2 sm:mt-0"><Skeleton className="h-5 w-20 rounded-full" /></div></CardHeader><CardContent className="p-4 sm:p-6 pt-0"><div className="flex items-center gap-2"><Skeleton className="flex-1 h-2" /><Skeleton className="h-3 w-1/4" /></div></CardContent></Card>))}</div>
-                </CardContent>
-            </Card>
-        </div>
-    );
+  if (isLoading) {
+    return <ProjectsPageSkeleton />;
   }
 
   const renderProjectList = () => {
@@ -1416,7 +1411,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         </CardHeader>
         <CardContent className="p-4 sm:p-6 pt-0">
           <div className="space-y-4">
-            {isLoadingProjects && displayedProjects.length === 0 ? (
+            {isLoading && displayedProjects.length === 0 ? (
                 [...Array(3)].map((_, i) => (
                     <Card key={`project-list-skel-${i}`} className="opacity-50 border-muted/50 animate-pulse">
                         <CardHeader className="flex flex-col sm:flex-row items-start justify-between space-y-2 sm:space-y-0 pb-2 p-4 sm:p-6">

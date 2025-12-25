@@ -66,6 +66,7 @@ import type { User as UserType } from '@/types/user-types';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
+import { getAllUsersForDisplay } from '@/services/user-service';
 
 
 const divisions = ['Owner', 'Akuntan', 'Admin Proyek', 'Arsitek', 'Struktur', 'MEP'];
@@ -82,11 +83,24 @@ const getEditUserSchema = (dictValidation: ReturnType<typeof getDictionary>['man
     roles: z.array(z.string()).min(1, dictValidation.roleRequired),
 });
 
-interface UsersPageClientProps {
-    initialUsers: Omit<UserType, 'password'>[];
+function PageSkeleton() {
+    return (
+        <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
+           <Card>
+               <CardHeader>
+                   <Skeleton className="h-7 w-1/3 mb-2" />
+                   <Skeleton className="h-4 w-2/3" />
+               </CardHeader>
+               <CardContent>
+                   <Skeleton className="h-40 w-full" />
+               </CardContent>
+           </Card>
+       </div>
+   );
 }
 
-export default function UsersPageClient({ initialUsers }: UsersPageClientProps) {
+
+export default function UsersPageClient() {
   const { toast } = useToast();
   const { language } = useLanguage();
   const { currentUser } = useAuth();
@@ -94,8 +108,8 @@ export default function UsersPageClient({ initialUsers }: UsersPageClientProps) 
   const dict = React.useMemo(() => getDictionary(language), [language]);
   const usersDict = React.useMemo(() => dict.manageUsersPage, [dict]);
 
-  const [users, setUsers] = React.useState<UserType[]>(initialUsers as UserType[]);
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [users, setUsers] = React.useState<UserType[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = React.useState(false);
   const [isEditUserDialogOpen, setIsEditUserDialogOpen] = React.useState(false);
@@ -104,10 +118,8 @@ export default function UsersPageClient({ initialUsers }: UsersPageClientProps) 
   const fetchUsers = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/users');
-      if (!response.ok) throw new Error('Failed to fetch users');
-      const fetchedUsers = await response.json();
-      setUsers(fetchedUsers);
+      const fetchedUsers = await getAllUsersForDisplay();
+      setUsers(fetchedUsers as UserType[]);
     } catch (error) {
       console.error("Failed to fetch users:", error);
       toast({ variant: 'destructive', title: usersDict.toast.error, description: usersDict.toast.fetchError });
@@ -115,6 +127,10 @@ export default function UsersPageClient({ initialUsers }: UsersPageClientProps) 
       setIsLoading(false);
     }
   }, [toast, usersDict.toast]);
+
+  React.useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const addUserSchema = React.useMemo(() => getAddUserSchema(usersDict.validation), [usersDict.validation]);
   const editUserSchema = React.useMemo(() => getEditUserSchema(usersDict.validation), [usersDict.validation]);
@@ -251,6 +267,10 @@ export default function UsersPageClient({ initialUsers }: UsersPageClientProps) 
     setEditingUser(user);
     setIsEditUserDialogOpen(true);
   };
+  
+  if (isLoading) {
+    return <PageSkeleton />;
+  }
 
   if (!canManageUsers) {
     return (

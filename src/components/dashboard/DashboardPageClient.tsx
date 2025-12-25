@@ -1,7 +1,7 @@
 // src/components/dashboard/DashboardPageClient.tsx
 'use client';
 
-import React, { useState, useMemo, useCallback, Suspense, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -31,7 +31,6 @@ import {
     Clock,
     PlusCircle,
     Briefcase,
-    CalendarClock,
     MapPin,
     Plane,
     Wrench,
@@ -53,6 +52,12 @@ import {
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, LabelList, Cell } from "recharts";
 import { Skeleton } from '@/components/ui/skeleton';
+import { getAllProjects } from '@/services/project-service';
+import { getApprovedLeaveRequests } from '@/services/leave-request-service';
+import { getAllHolidays } from '@/services/holiday-service';
+import { getAllUsersForDisplay } from '@/services/user-service';
+import { getTodaysAttendanceForAllUsers } from '@/services/attendance-service';
+import { getAppSettings } from '@/services/settings-service';
 
 // Unified event type for the calendar
 type CalendarEventType = 'sidang' | 'survey' | 'leave' | 'holiday' | 'company_event';
@@ -93,30 +98,82 @@ interface DashboardData {
     attendanceEnabled: boolean;
 }
 
-interface DashboardPageClientProps {
-  initialData: DashboardData;
+function DashboardSkeleton() {
+    return (
+      <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <Skeleton className="h-10 w-2/5" />
+          <Skeleton className="h-10 w-44" />
+        </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-6">
+            <Card><CardHeader><Skeleton className="h-6 w-1/3 mb-2" /><Skeleton className="h-4 w-2/3" /></CardHeader><CardContent><Skeleton className="h-40 w-full" /></CardContent></Card>
+            <Card><CardHeader><Skeleton className="h-6 w-1/3 mb-2" /><Skeleton className="h-4 w-1/2" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
+          </div>
+          <div className="lg:col-span-1 space-y-6">
+            <Card><CardHeader><Skeleton className="h-6 w-1/2 mb-2" /><Skeleton className="h-4 w-full" /></CardHeader><CardContent><Skeleton className="h-80 w-full" /></CardContent></Card>
+          </div>
+        </div>
+      </div>
+    );
 }
 
-
-export function DashboardPageClient({ initialData }: DashboardPageClientProps) {
+export function DashboardPageClient() {
   const { currentUser } = useAuth();
   const { language } = useLanguage();
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   const dashboardDict = useMemo(() => getDictionary(language).dashboardPage, [language]);
   const projectsDict = useMemo(() => getDictionary(language).projectsPage, [language]);
   const currentLocale = useMemo(() => language === 'id' ? idLocale : enLocale, [language]);
   
-  const { projects, leaveRequests, holidays, allUsers, todaysAttendance, attendanceEnabled } = initialData;
+  useEffect(() => {
+    async function getDashboardData() {
+      try {
+        const [
+          projects,
+          leaveRequests,
+          holidays,
+          allUsers,
+          todaysAttendance,
+          settings,
+        ] = await Promise.all([
+          getAllProjects(),
+          getApprovedLeaveRequests(),
+          getAllHolidays(),
+          getAllUsersForDisplay(),
+          getTodaysAttendanceForAllUsers(),
+          getAppSettings()
+        ]);
+
+        setData({
+          projects,
+          leaveRequests,
+          holidays,
+          allUsers,
+          todaysAttendance,
+          attendanceEnabled: settings.feature_attendance_enabled,
+        });
+      } catch (error) {
+        console.error("Failed to fetch dashboard data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    getDashboardData();
+  }, []);
+
 
   const { eventsByDate, upcomingEvents } = useMemo(() => {
-    if (!initialData) return { eventsByDate: {}, upcomingEvents: [] };
+    if (!data) return { eventsByDate: {}, upcomingEvents: [] };
 
     const eventMap: Record<string, UnifiedEvent[]> = {};
     const upcoming: UnifiedEvent[] = [];
     const today = startOfToday();
     const threeDaysFromNow = addDays(today, 3);
 
-    projects.forEach(p => {
+    data.projects.forEach(p => {
       if (p.scheduleDetails?.date && p.scheduleDetails?.time) {
         const eventDate = parseISO(`${p.scheduleDetails.date}T${p.scheduleDetails.time}`);
         const key = format(eventDate, 'yyyy-MM-dd');
@@ -131,7 +188,7 @@ export function DashboardPageClient({ initialData }: DashboardPageClientProps) {
       }
     });
 
-    leaveRequests.forEach(l => {
+    data.leaveRequests.forEach(l => {
       const start = parseISO(l.startDate);
       const end = parseISO(l.endDate);
       for (let day = start; day <= end; day = addDays(day, 1)) {
@@ -141,7 +198,7 @@ export function DashboardPageClient({ initialData }: DashboardPageClientProps) {
       }
     });
 
-    holidays.forEach(h => {
+    data.holidays.forEach(h => {
         const eventDate = parseISO(h.date);
         const key = format(eventDate, 'yyyy-MM-dd');
         if (!eventMap[key]) eventMap[key] = [];
@@ -164,27 +221,27 @@ export function DashboardPageClient({ initialData }: DashboardPageClientProps) {
     upcoming.sort((a,b) => a.date.getTime() - b.date.getTime());
 
     return { eventsByDate: eventMap, upcomingEvents: upcoming };
-  }, [projects, leaveRequests, holidays, initialData]);
+  }, [data]);
 
   const attendanceSummary = useMemo(() => {
-    if (!initialData) return { isHoliday: false, holidayName: null, checkedIn: 0, onLeave: 0, notCheckedIn: 0 };
+    if (!data) return { isHoliday: false, holidayName: null, checkedIn: 0, onLeave: 0, notCheckedIn: 0 };
     const today = new Date();
-    const todayHoliday = holidays.find(h => isSameDay(parseISO(h.date), today));
+    const todayHoliday = data.holidays.find(h => isSameDay(parseISO(h.date), today));
 
     if (todayHoliday) {
       return { isHoliday: true, holidayName: todayHoliday.name, checkedIn: 0, onLeave: 0, notCheckedIn: 0 };
     }
 
     const onLeaveToday = new Set<string>();
-    leaveRequests.forEach(l => {
+    data.leaveRequests.forEach(l => {
       if (isWithinInterval(today, { start: parseISO(l.startDate), end: endOfDay(parseISO(l.endDate)) })) {
         onLeaveToday.add(l.userId);
       }
     });
 
-    const checkedInCount = todaysAttendance.length;
-    const activeUsersToday = allUsers.filter(u => !onLeaveToday.has(u.id));
-    const notCheckedInCount = activeUsersToday.filter(u => !todaysAttendance.some(a => a.userId === u.id)).length;
+    const checkedInCount = data.todaysAttendance.length;
+    const activeUsersToday = data.allUsers.filter(u => !onLeaveToday.has(u.id));
+    const notCheckedInCount = activeUsersToday.filter(u => !data.todaysAttendance.some(a => a.userId === u.id)).length;
 
     return {
       isHoliday: false,
@@ -193,11 +250,12 @@ export function DashboardPageClient({ initialData }: DashboardPageClientProps) {
       onLeave: onLeaveToday.size,
       notCheckedIn: notCheckedInCount,
     };
-  }, [allUsers, todaysAttendance, leaveRequests, holidays, initialData]);
+  }, [data]);
 
   const activeProjects = useMemo(() => {
-    return projects.filter(p => p.status !== 'Completed' && p.status !== 'Canceled');
-  }, [projects]);
+    if (!data) return [];
+    return data.projects.filter(p => p.status !== 'Completed' && p.status !== 'Canceled');
+  }, [data]);
   
   const getTranslatedStatus = useCallback((statusKey: string): string => {
     const key = statusKey?.toLowerCase().replace(/ /g,'') as keyof typeof dashboardDict.status;
@@ -231,6 +289,10 @@ export function DashboardPageClient({ initialData }: DashboardPageClientProps) {
   
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
+  if (isLoading || !data) {
+    return <DashboardSkeleton />;
+  }
+
   return (
       <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -249,7 +311,7 @@ export function DashboardPageClient({ initialData }: DashboardPageClientProps) {
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
-            {(attendanceEnabled || (currentUser && currentUser.roles.includes('Admin Developer'))) && (
+            {(data.attendanceEnabled || (currentUser && currentUser.roles.includes('Admin Developer'))) && (
                 <Card>
                     <CardHeader>
                         <CardTitle>{dashboardDict.attendanceSummary.title}</CardTitle>
