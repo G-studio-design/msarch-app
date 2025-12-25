@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, FileText, PieChart as PieChartIcon, AlertTriangle } from 'lucide-react';
-import { useDictionary, type Language } from '@/context/LanguageContext';
+import { useLanguage, useDictionary } from '@/context/LanguageContext';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { type Project } from '../../services/project-service';
@@ -49,6 +49,7 @@ import { toPng } from 'html-to-image';
 import { cn } from '@/lib/utils';
 import { Card as ResponsiveCard } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import type { Language } from '@/context/LanguageContext';
 
 
 interface MonthlyReportData {
@@ -69,8 +70,9 @@ const CHART_EXPORT_COLORS = {
 export default function MonthlyReportClient() {
   const { currentUser } = useAuth();
   const { toast } = useToast();
+  const { language } = useLanguage();
   const dict = useDictionary();
-  const { monthlyReportPage: reportDict, dashboardPage: dashboardDict, language } = dict;
+  const { monthlyReportPage: reportDict, dashboardPage: dashboardDict } = dict;
 
   const currentMonth = (new Date().getMonth() + 1).toString();
   const currentYear = new Date().getFullYear().toString();
