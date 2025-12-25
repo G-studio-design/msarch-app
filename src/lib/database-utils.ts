@@ -101,7 +101,7 @@ export async function writeDb<T>(dbPath: string, data: T): Promise<void> {
  * Useful if the file is modified by an external process.
  * @param dbPath The absolute path to the database file to invalidate.
  */
-export function invalidateCache(dbPath: string): void {
+export async function invalidateCache(dbPath: string): Promise<void> {
     if (CACHE_ENABLED) {
         cache.delete(dbPath);
         console.log(`[Cache] Invalidated cache for ${path.basename(dbPath)}`);
@@ -111,7 +111,7 @@ export function invalidateCache(dbPath: string): void {
 /**
  * Clears the entire in-memory database cache.
  */
-export function clearAllCache(): void {
+export async function clearAllCache(): Promise<void> {
     if (CACHE_ENABLED) {
         cache.clear();
         console.log("[Cache] All in-memory caches cleared.");
