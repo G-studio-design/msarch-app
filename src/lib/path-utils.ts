@@ -1,3 +1,4 @@
+'use client';
 
 // src/lib/path-utils.ts
 
