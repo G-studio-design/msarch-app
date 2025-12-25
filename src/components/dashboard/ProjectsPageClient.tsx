@@ -96,7 +96,6 @@ import {
 } from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
 import { id as IndonesianLocale, enUS as EnglishLocale } from 'date-fns/locale';
-import { getAllProjects, addFilesToProject as addFilesToProjectService } from '@/services/project-service';
 import { API_BASE_URL } from '@/config/api-config';
 
 
@@ -222,7 +221,11 @@ export default function ProjectsPageClient() {
   const fetchAllProjects = React.useCallback(async () => {
     setIsLoading(true);
     try {
-        const data = await getAllProjects();
+        const response = await fetch('/api/projects');
+        if (!response.ok) {
+            throw new Error('Failed to fetch projects');
+        }
+        const data = await response.json();
         setAllProjects(data);
     } catch (error) {
         console.error("Failed to fetch projects:", error);

@@ -66,7 +66,6 @@ import type { User as UserType } from '@/types/user-types';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
-import { getAllUsersForDisplay } from '@/services/user-service';
 
 
 const divisions = ['Owner', 'Akuntan', 'Admin Proyek', 'Arsitek', 'Struktur', 'MEP'];
@@ -118,7 +117,11 @@ export default function UsersPageClient() {
   const fetchUsers = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      const fetchedUsers = await getAllUsersForDisplay();
+      const response = await fetch('/api/users');
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      const fetchedUsers = await response.json();
       setUsers(fetchedUsers as UserType[]);
     } catch (error) {
       console.error("Failed to fetch users:", error);
