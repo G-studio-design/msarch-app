@@ -3,10 +3,9 @@
 
 import type { ReactNode } from 'react';
 import React from 'react';
-import { Suspense } from 'react';
-import { Loader2 } from 'lucide-react';
 import DashboardLayoutWrapper from './DashboardLayoutWrapper';
 import { useAuth } from '@/context/AuthContext';
+import { Loader2 } from 'lucide-react';
 
 interface DashboardClientLayoutProps {
   children: ReactNode;
@@ -31,13 +30,12 @@ function DashboardLoadingSkeleton() {
     );
 }
 
-
-// This component is a Server Component that wraps the actual client-heavy layout.
-// It uses Suspense to handle client-side rendering of the wrapper.
+// This component is now simpler. It decides whether to show the skeleton or the full layout
+// based on the hydration status from the AuthContext.
 export default function DashboardClientLayout({ children, attendanceEnabled }: DashboardClientLayoutProps) {
-  const { isHydrated } = useAuth();
+  const { isHydrated, currentUser } = useAuth();
   
-  if (!isHydrated) {
+  if (!isHydrated || !currentUser) {
     return <DashboardLoadingSkeleton />;
   }
 
