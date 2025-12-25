@@ -1,8 +1,6 @@
 // src/app/dashboard/page.tsx
 import React, { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AuthProvider } from '@/context/AuthContext';
-import { LanguageProvider } from '@/context/LanguageContext';
 import { DashboardPageClient } from '@/components/dashboard/DashboardPageClient';
 import { Card, CardContent, CardHeader } from '@/components/ui';
 
@@ -42,14 +40,10 @@ export default async function DashboardPage() {
   };
 
   return (
-    // Wrap the entire client component in AuthProvider and LanguageProvider
-    // to ensure context is available.
-    <AuthProvider>
-        <LanguageProvider>
-          <Suspense fallback={<DashboardSkeleton />}>
-            <DashboardPageClient initialData={initialData} />
-          </Suspense>
-        </LanguageProvider>
-    </AuthProvider>
+    // Wrap the entire client component in Suspense
+    // to ensure client-side rendering is handled gracefully.
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardPageClient initialData={initialData} />
+    </Suspense>
   );
 }
