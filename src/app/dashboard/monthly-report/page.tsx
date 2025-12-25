@@ -1,6 +1,5 @@
 
 import React, { Suspense } from 'react';
-import { getAllProjects } from '@/services/project-service';
 import MonthlyReportClient from '@/components/dashboard/MonthlyReportClient';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -8,11 +7,10 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 export const dynamic = 'force-dynamic';
 
 export default async function MonthlyReportPage() {
-  const allProjects = await getAllProjects();
-
+  // Data fetching will now happen inside the client component
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <MonthlyReportClient initialProjects={allProjects} />
+      <MonthlyReportClient />
     </Suspense>
   );
 }

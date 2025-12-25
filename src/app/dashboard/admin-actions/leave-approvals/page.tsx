@@ -1,6 +1,5 @@
 
 import React, { Suspense } from 'react';
-import { getAllLeaveRequests } from '@/services/leave-request-service';
 import LeaveApprovalsClient from '@/components/dashboard/LeaveApprovalsClient';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -8,11 +7,10 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 export const dynamic = 'force-dynamic';
 
 export default async function LeaveApprovalsPage() {
-  const allRequests = await getAllLeaveRequests();
-
+  // Data fetching will now happen inside the client component
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <LeaveApprovalsClient initialRequests={allRequests} />
+      <LeaveApprovalsClient />
     </Suspense>
   );
 }

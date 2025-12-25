@@ -9,21 +9,23 @@ import { getAllHolidays } from '@/services/holiday-service';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AttendancePage() {
-    // Fetch all necessary data on the server
-    const [settings, leaves, holidays] = await Promise.all([
-        getAppSettings(),
-        getApprovedLeaveRequests(),
-        getAllHolidays()
-    ]);
+async function getInitialData() {
+  const [settings, leaves, holidays] = await Promise.all([
+    getAppSettings(),
+    getApprovedLeaveRequests(),
+    getAllHolidays(),
+  ]);
 
-    // Consolidate initial data for the client component
-    const initialData = {
-        attendanceEnabled: settings.feature_attendance_enabled,
-        settings,
-        leaves,
-        holidays
-    };
+  return {
+    attendanceEnabled: settings.feature_attendance_enabled,
+    settings,
+    leaves,
+    holidays,
+  };
+}
+
+export default async function AttendancePage() {
+    const initialData = await getInitialData();
 
     return (
         <Suspense fallback={<PageSkeleton />}>

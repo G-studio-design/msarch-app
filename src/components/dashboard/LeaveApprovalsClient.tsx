@@ -1,3 +1,4 @@
+
 'use client';
 
 // src/components/dashboard/LeaveApprovalsClient.tsx
@@ -42,11 +43,7 @@ import { id as IndonesianLocale, enUS as EnglishLocale } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
-interface LeaveApprovalsClientProps {
-  initialRequests: LeaveRequest[];
-}
-
-export default function LeaveApprovalsClient({ initialRequests }: LeaveApprovalsClientProps) {
+export default function LeaveApprovalsClient() {
   const { currentUser } = useAuth();
   const dict = useDictionary();
   const { leaveApprovalsPage: leaveApprovalsDict, manageUsersPage } = dict;
@@ -54,20 +51,18 @@ export default function LeaveApprovalsClient({ initialRequests }: LeaveApprovals
   const { toast } = useToast();
 
   const [pendingRequests, setPendingRequests] = React.useState<LeaveRequest[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [isProcessing, setIsProcessing] = React.useState<string | false>(false);
 
   const [isRejectDialogOpen, setIsRejectDialogOpen] = React.useState(false);
   const [requestToReject, setRequestToReject] = React.useState<LeaveRequest | null>(null);
   const [rejectionReason, setRejectionReason] = React.useState('');
 
-  React.useEffect(() => {
-    setPendingRequests(initialRequests.filter(req => req.status === 'Pending'));
-  }, [initialRequests]);
-
   const currentLocale = dict.language === 'id' ? IndonesianLocale : EnglishLocale;
 
   const fetchPendingRequests = React.useCallback(async () => {
     if (currentUser && currentUser.roles.includes('Owner')) {
+      setIsLoading(true);
       try {
         const response = await fetch('/api/leave-requests');
         if (!response.ok) {
@@ -78,9 +73,17 @@ export default function LeaveApprovalsClient({ initialRequests }: LeaveApprovals
       } catch (error: any) {
         console.error("Failed to fetch leave requests:", error);
         toast({ variant: 'destructive', title: leaveApprovalsDict.toast.errorTitle, description: error.message });
+      } finally {
+        setIsLoading(false);
       }
+    } else {
+        setIsLoading(false);
     }
   }, [currentUser, toast, leaveApprovalsDict]);
+
+  React.useEffect(() => {
+    fetchPendingRequests();
+  }, [fetchPendingRequests]);
 
   const handleApprove = async (requestId: string) => {
     if (!currentUser || !currentUser.roles.includes('Owner')) return;
@@ -158,6 +161,17 @@ export default function LeaveApprovalsClient({ initialRequests }: LeaveApprovals
     const key = leaveType.toLowerCase().replace(/ /g, '').replace(/[^a-z0-9]/gi, '') as keyof typeof leaveTypesDict;
     return leaveTypesDict[key] || leaveType;
   };
+  
+  if (isLoading) {
+    return (
+        <div className="container mx-auto py-4 px-4 md:px-6">
+          <Card>
+            <CardHeader><Skeleton className="h-7 w-1/3 mb-2" /><Skeleton className="h-4 w-2/3" /></CardHeader>
+            <CardContent><Skeleton className="h-64 w-full" /></CardContent>
+          </Card>
+        </div>
+    );
+  }
 
   if (!currentUser || !currentUser.roles.includes('Owner')) {
     return (

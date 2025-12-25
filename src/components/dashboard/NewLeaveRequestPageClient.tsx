@@ -25,17 +25,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { useLanguage } from '@/context/LanguageContext';
-import { getDictionary } from '@/lib/translations';
+import { useLanguage, useDictionary } from '@/context/LanguageContext';
 import type { AddLeaveRequestData } from '@/types/leave-request-types';
 import { Loader2, CalendarIcon, Send } from 'lucide-react';
 import { format, differenceInDays, addDays } from 'date-fns';
 import { id as IndonesianLocale, enUS as EnglishLocale } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const defaultDict = getDictionary('en');
-
-const getLeaveTypes = (dict: ReturnType<typeof getDictionary>['leaveRequestPage']['leaveTypes']) => [
+const getLeaveTypes = (dict: ReturnType<typeof useDictionary>['leaveRequestPage']['leaveTypes']) => [
   { value: 'Sakit', label: dict.sickLeave },
   { value: 'Cuti Tahunan', label: dict.annualLeave },
   { value: 'Keperluan Pribadi', label: dict.personalLeave },
@@ -43,7 +40,7 @@ const getLeaveTypes = (dict: ReturnType<typeof getDictionary>['leaveRequestPage'
   { value: 'Lainnya', label: dict.other },
 ];
 
-const getLeaveRequestSchema = (dictValidation: ReturnType<typeof getDictionary>['leaveRequestPage']['validation']) => z.object({
+const getLeaveRequestSchema = (dictValidation: ReturnType<typeof useDictionary>['leaveRequestPage']['validation']) => z.object({
   leaveType: z.string({ required_error: dictValidation.leaveTypeRequired }),
   startDate: z.date({ required_error: dictValidation.startDateRequired }),
   endDate: z.date({ required_error: dictValidation.endDateRequired }),
@@ -59,24 +56,17 @@ const getLeaveRequestSchema = (dictValidation: ReturnType<typeof getDictionary>[
 export default function NewLeaveRequestPageClient() {
   const { currentUser } = useAuth();
   const { language } = useLanguage();
+  const dict = useDictionary();
   const { toast } = useToast();
   const router = useRouter();
   const [isClient, setIsClient] = React.useState(false);
-  const [dict, setDict] = React.useState(defaultDict);
-  const [leaveRequestDict, setLeaveRequestDict] = React.useState(defaultDict.leaveRequestPage);
-  const [leaveTypes, setLeaveTypes] = React.useState(() => getLeaveTypes(defaultDict.leaveRequestPage.leaveTypes));
+  const { leaveRequestPage: leaveRequestDict } = dict;
+  const leaveTypes = React.useMemo(() => getLeaveTypes(leaveRequestDict.leaveTypes), [leaveRequestDict.leaveTypes]);
   const [isLoading, setIsLoading] = React.useState(false);
 
   React.useEffect(() => {
     setIsClient(true);
   }, []);
-
-  React.useEffect(() => {
-    const newDictData = getDictionary(language);
-    setDict(newDictData);
-    setLeaveRequestDict(newDictData.leaveRequestPage);
-    setLeaveTypes(getLeaveTypes(newDictData.leaveRequestPage.leaveTypes));
-  }, [language]);
 
   const currentLocale = language === 'id' ? IndonesianLocale : EnglishLocale;
 

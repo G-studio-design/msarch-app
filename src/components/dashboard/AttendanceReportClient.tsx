@@ -1,3 +1,4 @@
+
 'use client';
 
 // src/components/dashboard/AttendanceReportClient.tsx
@@ -9,21 +10,16 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Download, AlertTriangle, BarChart2, Plane, CalendarOff } from 'lucide-react';
-import { useLanguage } from '@/context/LanguageContext';
-import { getDictionary } from '@/lib/translations';
+import { useDictionary, type Language } from '@/context/LanguageContext';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
-import { format, parseISO, eachDayOfInterval, isWithinInterval } from 'date-fns';
+import { format, parseISO, eachDayOfInterval, isWithinInterval, endOfDay } from 'date-fns';
 import { id as idLocale, enUS as enLocale } from 'date-fns/locale';
-import { getMonthlyAttendanceReportData, type AttendanceRecord } from '@/services/attendance-service';
-import { getAllUsersForDisplay } from '@/services/user-service';
+import type { AttendanceRecord } from '@/services/attendance-service';
 import type { User } from '@/types/user-types';
-import { getApprovedLeaveRequests } from '@/services/leave-request-service';
 import type { LeaveRequest } from '@/types/leave-request-types';
-import { getAllHolidays, type HolidayEntry } from '@/services/holiday-service';
+import type { HolidayEntry } from '@/services/holiday-service';
 import { Card as ResponsiveCard } from '@/components/ui/card';
-
-const defaultDict = getDictionary('en');
 
 interface CombinedEvent {
   type: 'attendance' | 'leave' | 'absent';
@@ -43,22 +39,18 @@ interface ReportData {
   month: number;
 }
 
-interface AttendanceReportClientProps {
-    attendanceEnabled: boolean;
-}
-
-export default function AttendanceReportClient({ attendanceEnabled }: AttendanceReportClientProps) {
+export default function AttendanceReportClient() {
   const { currentUser } = useAuth();
-  const { language } = useLanguage();
   const { toast } = useToast();
-  const [isClient, setIsClient] = React.useState(false);
-  React.useEffect(() => { setIsClient(true) }, []);
-
-  const [dict, setDict] = React.useState(defaultDict.attendanceReportPage);
-  const [dictGlobal, setDictGlobal] = React.useState(defaultDict);
+  const dict = useDictionary();
+  const { attendanceReportPage: dictReport, attendancePage: dictAttendance, leaveRequestPage: dictLeave, dashboardPage: dictDashboard } = dict;
+  const { language } = dict;
 
   const currentMonth = (new Date().getMonth() + 1).toString();
   const currentYear = new Date().getFullYear().toString();
+  
+  const [attendanceEnabled, setAttendanceEnabled] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(true);
 
   const [selectedMonth, setSelectedMonth] = React.useState<string>(currentMonth);
   const [selectedYear, setSelectedYear] = React.useState<string>(currentYear);
@@ -67,14 +59,27 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
   const [isDownloading, setIsDownloading] = React.useState(false);
   const [reportData, setReportData] = React.useState<ReportData | null>(null);
 
-  React.useEffect(() => {
-    const newDictData = getDictionary(language);
-    setDict(newDictData.attendanceReportPage);
-    setDictGlobal(newDictData);
-  }, [language]);
-
-
   const canViewPage = currentUser && currentUser.roles && (currentUser.roles.includes('Owner') || currentUser.roles.includes('Admin Developer'));
+
+  React.useEffect(() => {
+    const fetchSettings = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+          const settings = await response.json();
+          setAttendanceEnabled(settings.feature_attendance_enabled);
+        } else {
+          console.error("Failed to fetch app settings for report page.");
+        }
+      } catch (error) {
+        console.error("Error fetching app settings:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   const getMonthName = React.useCallback((monthNumber: number) => {
     const date = new Date();
@@ -88,7 +93,7 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
   
   const handleGenerateReport = async () => {
     if (!selectedMonth || !selectedYear) {
-      toast({ variant: 'destructive', title: dict.toast.error, description: dict.toast.selectMonthYear });
+      toast({ variant: 'destructive', title: dictReport.toast.error, description: dictReport.toast.selectMonthYear });
       return;
     }
     setIsGenerating(true);
@@ -97,12 +102,24 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
       const monthInt = parseInt(selectedMonth, 10);
       const yearInt = parseInt(selectedYear, 10);
       
-      const [records, users, allApprovedLeave, allHolidays] = await Promise.all([
-        getMonthlyAttendanceReportData(monthInt, yearInt),
-        getAllUsersForDisplay(),
-        getApprovedLeaveRequests(),
-        getAllHolidays()
+      const [recordsRes, usersRes, leavesRes, holidaysRes] = await Promise.all([
+        fetch('/api/attendance/check-in'), // This should be a GET endpoint, assuming it gives all records
+        fetch('/api/users'),
+        fetch('/api/leave-requests'),
+        fetch('/api/settings'), // Assuming settings contains holidays
       ]);
+
+      if (!recordsRes.ok || !usersRes.ok || !leavesRes.ok || !holidaysRes.ok) {
+        throw new Error("Failed to fetch all necessary data.");
+      }
+      
+      const allRecords: AttendanceRecord[] = await recordsRes.json();
+      const records = allRecords.filter(r => r.date.startsWith(`${yearInt}-${monthInt.toString().padStart(2, '0')}`));
+      
+      const users: User[] = await usersRes.json();
+      const allApprovedLeave: LeaveRequest[] = (await leavesRes.json()).filter((l: LeaveRequest) => l.status === 'Approved');
+      const allHolidays: HolidayEntry[] = (await holidaysRes.json()).holidays || [];
+
 
       const reportInterval = { start: new Date(yearInt, monthInt - 1, 1), end: new Date(yearInt, monthInt, 0) };
       const monthlyHolidays = allHolidays.filter(h => isWithinInterval(parseISO(h.date), reportInterval));
@@ -129,7 +146,6 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
           }
       });
       
-      // Calculate absent days
       const daysInMonth = eachDayOfInterval(reportInterval);
       users.forEach(user => {
         daysInMonth.forEach(day => {
@@ -141,7 +157,7 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
           const isHoliday = monthlyHolidays.some(h => h.date === dateStr);
           if (isHoliday) return;
 
-          const isOnLeave = monthlyLeaves.some(l => l.userId === user.id && isWithinInterval(day, {start: parseISO(l.startDate), end: parseISO(l.endDate)}));
+          const isOnLeave = monthlyLeaves.some(l => l.userId === user.id && isWithinInterval(day, {start: parseISO(l.startDate), end: endOfDay(parseISO(l.endDate))}));
           if (isOnLeave) return;
 
           const hasAttendance = records.some(r => r.userId === user.id && r.date === dateStr);
@@ -190,11 +206,11 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
       });
 
       if (combinedEvents.length === 0) {
-        toast({ title: dict.toast.noDataTitle, description: dict.toast.noDataDesc });
+        toast({ title: dictReport.toast.noDataTitle, description: dictReport.toast.noDataDesc });
       }
 
     } catch (error: any) {
-      toast({ variant: 'destructive', title: dict.toast.error, description: error.message || dict.toast.generationFailed });
+      toast({ variant: 'destructive', title: dictReport.toast.error, description: error.message || dictReport.toast.generationFailed });
     } finally {
       setIsGenerating(false);
     }
@@ -202,7 +218,7 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
 
   const handleDownload = async () => {
     if (!reportData) {
-      toast({ variant: 'destructive', title: dict.toast.error, description: dict.toast.generateFirst });
+      toast({ variant: 'destructive', title: dictReport.toast.error, description: dictReport.toast.generateFirst });
       return;
     }
     setIsDownloading(true);
@@ -220,7 +236,7 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.details || dict.toast.generationFailed);
+        throw new Error(errorData.details || dictReport.toast.generationFailed);
       }
 
       const blob = await response.blob();
@@ -232,9 +248,9 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      toast({ title: dict.toast.success, description: dict.toast.downloadStarted });
+      toast({ title: dictReport.toast.success, description: dictReport.toast.downloadStarted });
     } catch (error: any) {
-      toast({ variant: 'destructive', title: dict.toast.error, description: error.message });
+      toast({ variant: 'destructive', title: dictReport.toast.error, description: error.message });
     } finally {
       setIsDownloading(false);
     }
@@ -249,7 +265,7 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
     }
   };
 
-  if (!isClient) {
+  if (isLoading) {
     return (
         <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
             <Skeleton className="h-8 w-1/3" />
@@ -263,8 +279,8 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
     return (
       <div className="container mx-auto py-4 px-4 md:px-6">
         <Card className="border-destructive">
-          <CardHeader><CardTitle className="text-destructive">{dict.accessDenied}</CardTitle></CardHeader>
-          <CardContent><p>{dict.accessDeniedDesc}</p></CardContent>
+          <CardHeader><CardTitle className="text-destructive">{dictReport.accessDenied}</CardTitle></CardHeader>
+          <CardContent><p>{dictReport.accessDeniedDesc}</p></CardContent>
         </Card>
       </div>
     );
@@ -272,16 +288,16 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
 
   return (
     <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
-      <h1 className="text-2xl md:text-3xl font-bold text-primary">{dict.title}</h1>
+      <h1 className="text-2xl md:text-3xl font-bold text-primary">{dictReport.title}</h1>
       <Card>
         <CardHeader>
-          <CardTitle>{dict.generateTitle}</CardTitle>
-          <CardDescription>{dict.generateDesc}</CardDescription>
+          <CardTitle>{dictReport.generateTitle}</CardTitle>
+          <CardDescription>{dictReport.generateDesc}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
             <div>
-              <Label htmlFor="month-select">{dict.monthLabel}</Label>
+              <Label htmlFor="month-select">{dictReport.monthLabel}</Label>
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                 <SelectTrigger id="month-select"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -290,7 +306,7 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
               </Select>
             </div>
             <div>
-              <Label htmlFor="year-select">{dict.yearLabel}</Label>
+              <Label htmlFor="year-select">{dictReport.yearLabel}</Label>
               <Select value={selectedYear} onValueChange={setSelectedYear}>
                 <SelectTrigger id="year-select"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -300,7 +316,7 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
             </div>
             <Button onClick={handleGenerateReport} disabled={isGenerating} className="accent-teal">
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BarChart2 className="mr-2 h-4 w-4" />}
-              {isGenerating ? dict.generatingButton : dict.generateButton}
+              {isGenerating ? dictReport.generatingButton : dictReport.generateButton}
             </Button>
           </div>
         </CardContent>
@@ -310,8 +326,8 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>{dict.reportTitle} - {reportData.monthName} {reportData.year}</CardTitle>
-              <CardDescription>{dict.summaryTitle}</CardDescription>
+              <CardTitle>{dictReport.reportTitle} - {reportData.monthName} {reportData.year}</CardTitle>
+              <CardDescription>{dictReport.summaryTitle}</CardDescription>
             </CardHeader>
             <CardContent>
               {/* Desktop View */}
@@ -319,11 +335,11 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
                 <Table className="min-w-[600px]">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{dict.tableHeaderEmployee}</TableHead>
-                      <TableHead className="text-center">{dict.tableHeaderPresent}</TableHead>
-                      <TableHead className="text-center">{dict.tableHeaderLate}</TableHead>
-                      <TableHead className="text-center">{dict.tableHeaderOnLeave}</TableHead>
-                      <TableHead className="text-center">{dict.tableHeaderAbsent}</TableHead>
+                      <TableHead>{dictReport.tableHeaderEmployee}</TableHead>
+                      <TableHead className="text-center">{dictReport.tableHeaderPresent}</TableHead>
+                      <TableHead className="text-center">{dictReport.tableHeaderLate}</TableHead>
+                      <TableHead className="text-center">{dictReport.tableHeaderOnLeave}</TableHead>
+                      <TableHead className="text-center">{dictReport.tableHeaderAbsent}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -347,10 +363,10 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
                       <CardTitle className="text-base">{user.displayName || user.username}</CardTitle>
                     </CardHeader>
                     <CardContent className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                      <div className="flex justify-between"><span>{dict.tableHeaderPresent}:</span> <span className="font-bold">{reportData.summary[user.id]?.present || 0}</span></div>
-                      <div className="flex justify-between"><span>{dict.tableHeaderLate}:</span> <span className="font-bold">{reportData.summary[user.id]?.late || 0}</span></div>
-                      <div className="flex justify-between"><span>{dict.tableHeaderOnLeave}:</span> <span className="font-bold">{reportData.summary[user.id]?.on_leave || 0}</span></div>
-                      <div className="flex justify-between"><span>{dict.tableHeaderAbsent}:</span> <span className="font-bold">{reportData.summary[user.id]?.absent || 0}</span></div>
+                      <div className="flex justify-between"><span>{dictReport.tableHeaderPresent}:</span> <span className="font-bold">{reportData.summary[user.id]?.present || 0}</span></div>
+                      <div className="flex justify-between"><span>{dictReport.tableHeaderLate}:</span> <span className="font-bold">{reportData.summary[user.id]?.late || 0}</span></div>
+                      <div className="flex justify-between"><span>{dictReport.tableHeaderOnLeave}:</span> <span className="font-bold">{reportData.summary[user.id]?.on_leave || 0}</span></div>
+                      <div className="flex justify-between"><span>{dictReport.tableHeaderAbsent}:</span> <span className="font-bold">{reportData.summary[user.id]?.absent || 0}</span></div>
                     </CardContent>
                   </ResponsiveCard>
                 ))}
@@ -360,7 +376,7 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
           
           <Card>
             <CardHeader>
-              <CardTitle>{dict.detailedLogTitle}</CardTitle>
+              <CardTitle>{dictReport.detailedLogTitle}</CardTitle>
             </CardHeader>
             <CardContent>
               {reportData.events.length > 0 ? (
@@ -368,14 +384,14 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
                   {/* Desktop View */}
                   <div className="hidden md:block w-full overflow-x-auto rounded-md border">
                     <Table className="min-w-[700px]">
-                      <TableCaption>{dict.reportFor} {reportData.monthName} {reportData.year}</TableCaption>
+                      <TableCaption>{dictReport.reportFor} {reportData.monthName} {reportData.year}</TableCaption>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>{dict.detailHeaderDate}</TableHead>
-                          <TableHead>{dict.detailHeaderEmployee}</TableHead>
-                          <TableHead>{dict.detailHeaderCheckIn}</TableHead>
-                          <TableHead>{dict.detailHeaderCheckOut}</TableHead>
-                          <TableHead>{dict.detailHeaderStatus}</TableHead>
+                          <TableHead>{dictReport.detailHeaderDate}</TableHead>
+                          <TableHead>{dictReport.detailHeaderEmployee}</TableHead>
+                          <TableHead>{dictReport.detailHeaderCheckIn}</TableHead>
+                          <TableHead>{dictReport.detailHeaderCheckOut}</TableHead>
+                          <TableHead>{dictReport.detailHeaderStatus}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -387,18 +403,18 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
                                 <>
                                   <TableCell>{formatTimeOnly((event.data as AttendanceRecord).checkInTime)}</TableCell>
                                   <TableCell>{formatTimeOnly((event.data as AttendanceRecord).checkOutTime)}</TableCell>
-                                  <TableCell>{dictGlobal.attendancePage.status[(event.data as AttendanceRecord).status.toLowerCase() as keyof typeof dictGlobal.attendancePage.status] || (event.data as AttendanceRecord).status}</TableCell>
+                                  <TableCell>{dictAttendance.status[(event.data as AttendanceRecord).status.toLowerCase() as keyof typeof dictAttendance.status]}</TableCell>
                                 </>
                             ) : event.type === 'leave' ? (
                                 <TableCell colSpan={3} className="text-center text-blue-600 italic">
                                     <div className="flex items-center justify-center gap-2">
                                       <Plane className="h-4 w-4"/> 
-                                      <span>{dictGlobal.leaveRequestPage.leaveTypes[(event.data as LeaveRequest).leaveType.toLowerCase().replace(/ /g, '') as keyof typeof dictGlobal.leaveRequestPage.leaveTypes] || (event.data as LeaveRequest).leaveType}</span>
+                                      <span>{dictLeave.leaveTypes[(event.data as LeaveRequest).leaveType.toLowerCase().replace(/ /g, '') as keyof typeof dictLeave.leaveTypes]}</span>
                                     </div>
                                 </TableCell>
                             ) : (
                                  <TableCell colSpan={3} className="text-center text-red-600 italic">
-                                    {dict.tableHeaderAbsent}
+                                    {dictReport.tableHeaderAbsent}
                                  </TableCell>
                             )}
                           </TableRow>
@@ -409,7 +425,7 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
                                 <TableCell colSpan={4} className="text-center text-fuchsia-600 italic">
                                    <div className="flex items-center justify-center gap-2">
                                     <CalendarOff className="h-4 w-4"/>
-                                    <span>{dictGlobal.dashboardPage.holidayLabel}: {holiday.name}</span>
+                                    <span>{dictDashboard.holidayLabel}: {holiday.name}</span>
                                    </div>
                                 </TableCell>
                              </TableRow>
@@ -428,17 +444,17 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
                         <CardContent className="text-sm space-y-2">
                           {event.type === 'attendance' ? (
                               <>
-                                <div><span className="font-semibold">{dict.detailHeaderCheckIn}:</span> {formatTimeOnly((event.data as AttendanceRecord).checkInTime)}</div>
-                                <div><span className="font-semibold">{dict.detailHeaderCheckOut}:</span> {formatTimeOnly((event.data as AttendanceRecord).checkOutTime)}</div>
-                                <div><span className="font-semibold">{dict.detailHeaderStatus}:</span> {dictGlobal.attendancePage.status[(event.data as AttendanceRecord).status.toLowerCase() as keyof typeof dictGlobal.attendancePage.status] || (event.data as AttendanceRecord).status}</div>
+                                <div><span className="font-semibold">{dictReport.detailHeaderCheckIn}:</span> {formatTimeOnly((event.data as AttendanceRecord).checkInTime)}</div>
+                                <div><span className="font-semibold">{dictReport.detailHeaderCheckOut}:</span> {formatTimeOnly((event.data as AttendanceRecord).checkOutTime)}</div>
+                                <div><span className="font-semibold">{dictReport.detailHeaderStatus}:</span> {dictAttendance.status[(event.data as AttendanceRecord).status.toLowerCase() as keyof typeof dictAttendance.status]}</div>
                               </>
                           ) : event.type === 'leave' ? (
                               <div className="flex items-center gap-2 text-blue-600 italic">
                                 <Plane className="h-4 w-4"/>
-                                <span>{dictGlobal.leaveRequestPage.leaveTypes[(event.data as LeaveRequest).leaveType.toLowerCase().replace(/ /g, '') as keyof typeof dictGlobal.leaveRequestPage.leaveTypes] || (event.data as LeaveRequest).leaveType}</span>
+                                <span>{dictLeave.leaveTypes[(event.data as LeaveRequest).leaveType.toLowerCase().replace(/ /g, '') as keyof typeof dictLeave.leaveTypes]}</span>
                               </div>
                           ) : (
-                              <div className="text-red-600 italic">{dict.tableHeaderAbsent}</div>
+                              <div className="text-red-600 italic">{dictReport.tableHeaderAbsent}</div>
                           )}
                         </CardContent>
                       </ResponsiveCard>
@@ -457,14 +473,14 @@ export default function AttendanceReportClient({ attendanceEnabled }: Attendance
                 </>
               ) : (
                 <div className="text-center text-muted-foreground py-4">
-                  <p>{dict.toast.noDataDesc}</p>
+                  <p>{dictReport.toast.noDataDesc}</p>
                 </div>
               )}
             </CardContent>
             <CardFooter>
               <Button onClick={handleDownload} disabled={isDownloading}>
                 {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                {isDownloading ? dict.downloadingButton : dict.downloadButton}
+                {isDownloading ? dictReport.downloadingButton : dictReport.downloadButton}
               </Button>
             </CardFooter>
           </Card>

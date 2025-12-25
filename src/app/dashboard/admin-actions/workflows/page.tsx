@@ -1,6 +1,5 @@
 
 import React, { Suspense } from 'react';
-import { getAllWorkflows } from '@/services/workflow-service';
 import WorkflowsPageClient from '@/components/dashboard/WorkflowsPageClient';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -8,11 +7,10 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 export const dynamic = 'force-dynamic';
 
 export default async function ManageWorkflowsPage() {
-  const workflows = await getAllWorkflows();
-
+  // Data fetching will now happen inside the client component
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <WorkflowsPageClient initialWorkflows={workflows} />
+      <WorkflowsPageClient />
     </Suspense>
   );
 }

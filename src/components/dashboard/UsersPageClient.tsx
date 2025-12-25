@@ -1,3 +1,4 @@
+
 // src/components/dashboard/UsersPageClient.tsx
 'use client';
 
@@ -60,24 +61,21 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useLanguage } from '@/context/LanguageContext';
-import { getDictionary } from '@/lib/translations';
+import { useDictionary } from '@/context/LanguageContext';
 import type { User as UserType } from '@/types/user-types';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 
-
 const divisions = ['Owner', 'Akuntan', 'Admin Proyek', 'Arsitek', 'Struktur', 'MEP'];
-const defaultGlobalDict = getDictionary('en');
 
-const getAddUserSchema = (dictValidation: ReturnType<typeof getDictionary>['manageUsersPage']['validation']) => z.object({
+const getAddUserSchema = (dictValidation: ReturnType<typeof useDictionary>['manageUsersPage']['validation']) => z.object({
     username: z.string().min(3, dictValidation.usernameMin),
     password: z.string().min(6, dictValidation.passwordMin),
     roles: z.array(z.string()).min(1, dictValidation.roleRequired),
 });
 
-const getEditUserSchema = (dictValidation: ReturnType<typeof getDictionary>['manageUsersPage']['validation']) => z.object({
+const getEditUserSchema = (dictValidation: ReturnType<typeof useDictionary>['manageUsersPage']['validation']) => z.object({
     username: z.string().min(3, dictValidation.usernameMin),
     roles: z.array(z.string()).min(1, dictValidation.roleRequired),
 });
@@ -101,12 +99,11 @@ function PageSkeleton() {
 
 export default function UsersPageClient() {
   const { toast } = useToast();
-  const { language } = useLanguage();
+  const dict = useDictionary();
+  const { manageUsersPage: usersDict } = dict;
+
   const { currentUser } = useAuth();
   
-  const dict = React.useMemo(() => getDictionary(language), [language]);
-  const usersDict = React.useMemo(() => dict.manageUsersPage, [dict]);
-
   const [users, setUsers] = React.useState<UserType[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isProcessing, setIsProcessing] = React.useState(false);
@@ -238,11 +235,7 @@ export default function UsersPageClient() {
     if (!roles || roles.length === 0) return 'Not Assigned';
     
     if (!usersDict?.roles) {
-      const fallbackDict = defaultGlobalDict.manageUsersPage.roles as Record<string, string>;
-      return roles.map(role => {
-        const key = role?.trim().replace(/\s+/g, '').toLowerCase() || "";
-        return fallbackDict[key] || role;
-      }).join(', ');
+      return roles.join(', ');
     }
 
     return roles.map(role => {
@@ -250,7 +243,7 @@ export default function UsersPageClient() {
         const normalizedKey = role.trim().replace(/\s+/g, '').toLowerCase() as keyof typeof usersDict.roles;
         return usersDict.roles[normalizedKey] || role;
     }).join(', ');
-  }, [usersDict, defaultGlobalDict]);
+  }, [usersDict]);
 
   const getRoleIcon = (role: string) => {
       if (!role) return <User className="h-4 w-4 text-muted-foreground" />;

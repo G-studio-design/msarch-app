@@ -22,8 +22,6 @@ const getAddProjectSchema = (dictValidation: ReturnType<typeof useDictionary>['a
   title: z.string().min(5, dictValidation.titleMin),
 });
 
-const defaultDict = getDictionary('en');
-
 export default function AddProjectPageClient() {
   const { currentUser } = useAuth();
   const { language } = useLanguage();
@@ -109,7 +107,7 @@ export default function AddProjectPageClient() {
 
       toast({
         title: addProjectDict.toast.success,
-        description: (addProjectDict.toast.successDesc || defaultDict.addProjectPage.toast.successDesc)
+        description: (addProjectDict.toast.successDesc)
           .replace('{title}', `"${newProject.title}"`) 
           .replace('{division}', translatedDivision),
       });
@@ -155,10 +153,10 @@ export default function AddProjectPageClient() {
           <div className="container mx-auto py-4 px-4 md:px-6">
            <Card className="border-destructive">
              <CardHeader>
-               <CardTitle className="text-destructive">{addProjectDict.accessDeniedTitle || defaultDict.manageUsersPage.accessDeniedTitle}</CardTitle>
+               <CardTitle className="text-destructive">{addProjectDict.accessDeniedTitle}</CardTitle>
              </CardHeader>
              <CardContent>
-               <p>{addProjectDict.accessDenied || defaultDict.manageUsersPage.accessDeniedDesc}</p>
+               <p>{addProjectDict.accessDenied}</p>
              </CardContent>
            </Card>
          </div>
@@ -206,7 +204,7 @@ export default function AddProjectPageClient() {
 
                  {selectedFiles.length > 0 && (
                    <div className="space-y-2 rounded-md border p-3">
-                     <Label>{(addProjectDict.selectedFilesLabel || defaultDict.addProjectPage.selectedFilesLabel)} ({selectedFiles.length})</Label>
+                     <Label>{(addProjectDict.selectedFilesLabel)} ({selectedFiles.length})</Label>
                      <ul className="list-disc list-inside text-sm space-y-1 max-h-32 overflow-y-auto">
                        {selectedFiles.map((file, index) => (
                          <li key={index} className="flex items-center justify-between group">
@@ -231,7 +229,7 @@ export default function AddProjectPageClient() {
 
                <div className="flex flex-col sm:flex-row justify-end gap-2">
                   <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading} className="w-full sm:w-auto">
-                    {addProjectDict.cancelButton || defaultDict.manageUsersPage.cancelButton}
+                    {addProjectDict.cancelButton}
                  </Button>
                   <Button type="submit" className="accent-teal w-full sm:w-auto" disabled={isLoading}>
                     {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

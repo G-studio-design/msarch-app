@@ -1,3 +1,4 @@
+
 // src/components/dashboard/MonthlyReportClient.tsx
 'use client';
 
@@ -30,8 +31,7 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, FileText, PieChart as PieChartIcon, AlertTriangle } from 'lucide-react';
-import { useLanguage } from '@/context/LanguageContext';
-import { getDictionary } from '@/lib/translations';
+import { useDictionary, type Language } from '@/context/LanguageContext';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { type Project } from '../../services/project-service';
@@ -45,7 +45,6 @@ import {
   type ChartConfig
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList, Cell } from "recharts";
-import type { Language } from '@/context/LanguageContext';
 import { toPng } from 'html-to-image';
 import { cn } from '@/lib/utils';
 import { Card as ResponsiveCard } from '@/components/ui/card';
@@ -60,12 +59,6 @@ interface MonthlyReportData {
   year: string;
 }
 
-interface MonthlyReportClientProps {
-    initialProjects: Project[];
-}
-
-const defaultDict = getDictionary('en');
-
 const CHART_EXPORT_COLORS = {
   inProgress: "#2980B9", // Blue
   completed: "#27AE60", // Green
@@ -73,17 +66,17 @@ const CHART_EXPORT_COLORS = {
 };
 
 
-export default function MonthlyReportClient({ initialProjects }: MonthlyReportClientProps) {
+export default function MonthlyReportClient() {
   const { currentUser } = useAuth();
-  const { language } = useLanguage();
   const { toast } = useToast();
-
-  const [dict, setDict] = React.useState(defaultDict);
-  const [reportDict, setReportDict] = React.useState(defaultDict.monthlyReportPage);
-  const [dashboardDict, setDashboardDict] = React.useState(defaultDict.dashboardPage);
+  const dict = useDictionary();
+  const { monthlyReportPage: reportDict, dashboardPage: dashboardDict, language } = dict;
 
   const currentMonth = (new Date().getMonth() + 1).toString();
   const currentYear = new Date().getFullYear().toString();
+
+  const [initialProjects, setInitialProjects] = React.useState<Project[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
 
   const [selectedMonth, setSelectedMonth] = React.useState<string>(currentMonth);
   const [selectedYear, setSelectedYear] = React.useState<string>(currentYear);
@@ -95,11 +88,22 @@ export default function MonthlyReportClient({ initialProjects }: MonthlyReportCl
   const [chartImageDataUrl, setChartImageDataUrl] = React.useState<string | null>(null);
   
   React.useEffect(() => {
-    const newDict = getDictionary(language);
-    setDict(newDict);
-    setReportDict(newDict.monthlyReportPage);
-    setDashboardDict(newDict.dashboardPage);
-  }, [language]);
+    const fetchProjects = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(`/api/projects`);
+        if (!response.ok) throw new Error('Failed to fetch projects');
+        const data = await response.json();
+        setInitialProjects(data);
+      } catch (error) {
+        console.error("Failed to load initial projects:", error);
+        toast({ variant: 'destructive', title: reportDict.toast.error, description: reportDict.toast.couldNotLoadProjects });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProjects();
+  }, [reportDict.toast.error, reportDict.toast.couldNotLoadProjects, toast]);
 
 
   const canViewPage = currentUser && currentUser.roles && ['Owner', 'Akuntan', 'Admin Proyek', 'Admin Developer'].some(role => currentUser.roles.includes(role));
@@ -348,6 +352,24 @@ export default function MonthlyReportClient({ initialProjects }: MonthlyReportCl
     return combined;
   }, [reportData, dashboardDict.status]);
 
+
+  if (isLoading) {
+    return (
+        <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
+            <Card>
+                <CardHeader><Skeleton className="h-8 w-2/5 mb-2" /><Skeleton className="h-4 w-3/5" /></CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>
+                    <Skeleton className="h-10 w-40" />
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader><Skeleton className="h-7 w-1/3" /></CardHeader>
+                <CardContent><Skeleton className="h-64 w-full" /></CardContent>
+            </Card>
+        </div>
+    );
+  }
 
   if (!canViewPage) {
     return (
