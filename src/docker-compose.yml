@@ -1,0 +1,66 @@
+version: '3.8'
+
+# Mendefinisikan jaringan kustom agar kontainer bisa saling berkomunikasi
+# Custom network to allow containers to communicate with each other by service name
+networks:
+  msarch-net:
+    driver: bridge
+
+services:
+  # Layanan untuk aplikasi Next.js Anda (The Next.js application service)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # GANTI DENGAN PUID DAN PGID DARI PENGGUNA NAS ANDA
+        # Jalankan 'id <username>' via SSH di NAS untuk mendapatkannya.
+        # CHANGE THIS TO YOUR NAS USER'S PUID AND PGID
+        # Run 'id <username>' via SSH on your NAS to get them.
+        - PUID=1026
+        - PGID=100
+    container_name: msarch-app-prod
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # PENTING: Arahkan DATABASE_PATH ke /app/data. 
+      # Semua layanan akan menggunakan path ini sebagai basis.
+      # IMPORTANT: Point DATABASE_PATH to /app/data.
+      # All services will use this as their base path.
+      - DATABASE_PATH=/app/data
+    volumes:
+      # Map folder data eksternal Anda di NAS ke folder /app/data di dalam kontainer.
+      # This connects your external data folder on the NAS to the /app/data folder inside the container.
+      - ./msarch-data:/app/data
+      # Map folder unggahan publik (seperti avatar) ke folder public/uploads di dalam kontainer.
+      # This connects your public uploads folder (for avatars, etc.) to the public/uploads folder inside the container.
+      - ./msarch-data/uploads:/app/public/uploads
+    # Menambahkan layanan 'app' ke jaringan 'msarch-net'
+    # Add the 'app' service to the 'msarch-net' network
+    networks:
+      - msarch-net
+    # Opsi optimisasi (Optimization options)
+    # Anda bisa mengatur batas memori jika perlu, misal: memory: '1g'
+    # You can set a memory limit if needed, e.g., memory: '1g'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Layanan untuk Cloudflare Tunnel (The Cloudflare Tunnel service)
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: msarch-tunnel-connector
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      # Token ini diambil dari file .env (This token is sourced from the .env file)
+      - TUNNEL_TOKEN=${CLOUDFLARED_TOKEN}
+    # Menambahkan layanan 'tunnel' ke jaringan yang sama
+    # Add the 'tunnel' service to the same network
+    networks:
+      - msarch-net
+    depends_on:
+      - app # Memastikan aplikasi 'app' dimulai sebelum tunnel mencoba menghubunginya (Ensures the 'app' service starts before the tunnel tries to connect)

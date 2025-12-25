@@ -150,17 +150,20 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
   
   useEffect(() => {
     async function loadData() {
+      if (!currentUser) return; // Don't fetch if no user
       setIsLoading(true);
       const fetchedData = await getDashboardData();
       setData(fetchedData);
       setIsLoading(false);
     }
     loadData();
-  }, []);
+  }, [currentUser]); // Re-fetch when user logs in
 
   const { projects = [], leaveRequests = [], holidays = [], allUsers = [], todaysAttendance = [], attendanceEnabled = false } = data || {};
 
   const { eventsByDate, upcomingEvents } = useMemo(() => {
+    if (!data) return { eventsByDate: {}, upcomingEvents: [] };
+
     const eventMap: Record<string, UnifiedEvent[]> = {};
     const upcoming: UnifiedEvent[] = [];
     const today = startOfToday();
@@ -214,9 +217,10 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
     upcoming.sort((a,b) => a.date.getTime() - b.date.getTime());
 
     return { eventsByDate: eventMap, upcomingEvents: upcoming };
-  }, [projects, leaveRequests, holidays]);
+  }, [projects, leaveRequests, holidays, data]);
 
   const attendanceSummary = useMemo(() => {
+    if (!data) return { isHoliday: false, holidayName: null, checkedIn: 0, onLeave: 0, notCheckedIn: 0 };
     const today = new Date();
     const todayHoliday = holidays.find(h => isSameDay(parseISO(h.date), today));
 
@@ -242,7 +246,7 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
       onLeave: onLeaveToday.size,
       notCheckedIn: notCheckedInCount,
     };
-  }, [allUsers, todaysAttendance, leaveRequests, holidays]);
+  }, [allUsers, todaysAttendance, leaveRequests, holidays, data]);
 
   const activeProjects = useMemo(() => {
     return projects.filter(p => p.status !== 'Completed' && p.status !== 'Canceled');
@@ -285,7 +289,6 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
   }
 
   return (
-    <Suspense fallback={<DashboardSkeleton />}>
       <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h1 className="text-2xl md:text-3xl font-bold text-primary">
@@ -502,6 +505,5 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
           </div>
         </div>
       </div>
-    </Suspense>
   );
 }

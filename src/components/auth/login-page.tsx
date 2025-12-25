@@ -35,12 +35,35 @@ const getLoginSchema = (dictValidation: ReturnType<typeof getDictionary>['login'
     password: z.string().min(1, dictValidation.passwordRequired),
 });
 
+const LoginSkeleton = () => (
+    <Card className="w-full max-w-md shadow-lg">
+      <CardHeader>
+        <div className="flex justify-center mb-4">
+          <Skeleton className="h-16 w-16 rounded-full" />
+        </div>
+        <Skeleton className="h-7 w-2/3 mx-auto" />
+        <Skeleton className="h-4 w-1/2 mx-auto mt-2" />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-10 w-full" />
+        </div>
+         <div className="space-y-2">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-10 w-full" />
+        </div>
+        <Skeleton className="h-10 w-full" />
+      </CardContent>
+    </Card>
+);
 
 export default function LoginPage() {
   const { toast } = useToast();
   const router = useRouter();
   const { language } = useLanguage();
   const { setCurrentUser, isHydrated } = useAuth();
+  
   const [dict, setDict] = React.useState(defaultDict.login);
   const [loginError, setLoginError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -67,9 +90,11 @@ export default function LoginPage() {
   });
 
    React.useEffect(() => {
-       form.trigger();
-       setLoginError(null);
-   }, [dict, form]);
+       if (isHydrated) {
+          form.trigger();
+          setLoginError(null);
+       }
+   }, [dict, form, isHydrated]);
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsSubmitting(true);
@@ -86,7 +111,6 @@ export default function LoginPage() {
         const result = await response.json();
 
         if (!response.ok) {
-            // Throw an error with the message from the server's JSON response
             throw new Error(result.message || 'An unexpected error occurred.');
         }
 
@@ -101,7 +125,6 @@ export default function LoginPage() {
     } catch (error: any) {
         console.error('Login error:', error);
         
-        // The error.message will now correctly contain the server's message
         const errorMessage = error.message || dict.invalidCredentials;
         setLoginError(errorMessage);
         
@@ -114,29 +137,6 @@ export default function LoginPage() {
         setIsSubmitting(false);
     }
   };
-  
-  const LoginSkeleton = () => (
-    <Card className="w-full max-w-md shadow-lg">
-      <CardHeader>
-        <div className="flex justify-center mb-4">
-          <Skeleton className="h-16 w-16 rounded-full" />
-        </div>
-        <Skeleton className="h-7 w-2/3 mx-auto" />
-        <Skeleton className="h-4 w-1/2 mx-auto mt-2" />
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-10 w-full" />
-        </div>
-         <div className="space-y-2">
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-10 w-full" />
-        </div>
-        <Skeleton className="h-10 w-full" />
-      </CardContent>
-    </Card>
-  );
 
   return (
      <div className="flex min-h-screen items-center justify-center bg-secondary p-4">
