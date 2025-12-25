@@ -13,14 +13,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { useLanguage } from '@/context/LanguageContext';
-import { getDictionary } from '@/lib/translations';
+import { useLanguage, useDictionary } from '@/context/LanguageContext';
 import { Loader2, Upload, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DEFAULT_WORKFLOW_ID } from '@/config/workflow-constants';
-import { API_BASE_URL } from '@/config/api-config';
 
-const getAddProjectSchema = (dictValidation: ReturnType<typeof getDictionary>['addProjectPage']['validation']) => z.object({
+const getAddProjectSchema = (dictValidation: ReturnType<typeof useDictionary>['addProjectPage']['validation']) => z.object({
   title: z.string().min(5, dictValidation.titleMin),
 });
 
@@ -29,12 +27,12 @@ const defaultDict = getDictionary('en');
 export default function AddProjectPageClient() {
   const { currentUser } = useAuth();
   const { language } = useLanguage();
+  const dict = useDictionary();
   const { toast } = useToast();
   const router = useRouter();
   const [isClient, setIsClient] = React.useState(false);
   
-  const addProjectDict = React.useMemo(() => getDictionary(language).addProjectPage, [language]);
-  const dashboardDict = React.useMemo(() => getDictionary(language).dashboardPage, [language]);
+  const { addProjectPage: addProjectDict, dashboardPage: dashboardDict } = dict;
 
   const [isLoading, setIsLoading] = React.useState(false);
   const [selectedFiles, setSelectedFiles] = React.useState<File[]>([]);
@@ -96,7 +94,7 @@ export default function AddProjectPageClient() {
       formData.append('userId', currentUser.id);
       selectedFiles.forEach(file => formData.append('files', file));
 
-      const response = await fetch(`${API_BASE_URL}/api/projects`, {
+      const response = await fetch('/api/projects', {
         method: 'POST',
         body: formData,
       });
