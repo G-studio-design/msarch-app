@@ -3,8 +3,8 @@
 
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import type { User, AddUserData, UpdateProfileData, UpdatePasswordData, UpdateUserGoogleTokensData } from '../types/user-types';
-import { readDb, writeDb } from '../lib/database-utils';
+import type { User, AddUserData, UpdateProfileData, UpdatePasswordData, UpdateUserGoogleTokensData } from '@/types/user-types';
+import { readDb, writeDb } from '@/lib/database-utils';
 
 const DB_BASE_PATH = process.env.DATABASE_PATH || '/app/data';
 const DB_PATH_USERS = path.join(DB_BASE_PATH, 'database', 'users.json');

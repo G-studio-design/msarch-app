@@ -1,26 +1,10 @@
-
 // src/lib/report-generator.ts
 'use server';
 
 import {
-  Document,
-  Packer,
-  Paragraph,
-  TextRun,
-  Table,
-  TableCell,
-  TableRow,
-  WidthType,
-  BorderStyle,
-  VerticalAlign,
-  AlignmentType,
-  ImageRun,
-  ShadingType,
-  PageNumber,
-  Header,
-  Footer,
-  SectionType,
-  UnderlineType,
+  Document, Packer, Paragraph, TextRun, Table, TableCell, TableRow,
+  WidthType, BorderStyle, VerticalAlign, AlignmentType, ImageRun,
+  ShadingType, PageNumber, Header, Footer, SectionType
 } from 'docx';
 import type { Project } from '@/types/project-types';
 import type { Language } from '@/context/LanguageContext';
@@ -229,7 +213,6 @@ export async function generateWordReport({
   childrenForSection.push(new Paragraph({ children: [new TextRun(ensureNonEmpty(null, " "))], spacing: { before: 400 } })); // Spacing
 
   const doc = new Document({
-    // TIDAK ADA properti 'styles' di sini untuk sementara
     creator: ensureNonEmpty("Msarch App"),
     title: ensureNonEmpty(`${translations.monthlyReportPage.reportFor} ${monthName} ${year}`),
     description: ensureNonEmpty(translations.monthlyReportPage.description),

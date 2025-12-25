@@ -23,9 +23,9 @@ const LanguageContext = createContext<LanguageContextProps | undefined>(undefine
 const DictionaryContext = createContext<DictionaryContextProps | undefined>(undefined);
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
-  const [language, setLanguage] = useState<Language>('en');
+  const [language, setLanguage] = useState<Language>('id');
   const [isHydrated, setIsHydrated] = useState(false);
-  const [dict, setDict] = useState<Dictionary>(getDictionary('en')); // Initial default
+  const [dict, setDict] = useState<Dictionary>(getDictionary('id')); // Initial default
 
   useEffect(() => {
     // This effect runs only on the client

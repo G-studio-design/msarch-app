@@ -7,8 +7,8 @@ import {
     DEFAULT_WORKFLOW_NAME,
     DEFAULT_WORKFLOW_DESCRIPTION
 } from '../config/workflow-constants';
-import type { Workflow, WorkflowStep, WorkflowStepTransition } from '../types/workflow-types';
-import { readDb, writeDb } from '../lib/database-utils';
+import type { Workflow, WorkflowStep, WorkflowStepTransition } from '@/types/workflow-types';
+import { readDb, writeDb } from '@/lib/database-utils';
 
 const DB_BASE_PATH = process.env.DATABASE_PATH || '/app/data';
 const DB_PATH = path.join(DB_BASE_PATH, 'database', 'workflows.json');

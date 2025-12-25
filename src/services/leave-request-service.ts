@@ -4,7 +4,7 @@
 import * as path from 'path';
 import { notifyUsersByRole, notifyUserById, type NotificationPayload } from './notification-service';
 import type { LeaveRequest, AddLeaveRequestData } from '@/types/leave-request-types';
-import { readDb, writeDb } from '../lib/database-utils';
+import { readDb, writeDb } from '@/lib/database-utils';
 
 const DB_BASE_PATH = process.env.DATABASE_PATH || '/app/data';
 const DB_PATH = path.join(DB_BASE_PATH, 'database', 'leave_requests.json');

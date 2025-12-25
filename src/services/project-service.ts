@@ -8,10 +8,8 @@ import { id as IndonesianLocale } from 'date-fns/locale';
 import { notifyUsersByRole, deleteNotificationsByProjectId, type NotificationPayload } from './notification-service';
 import { getWorkflowById, getFirstStep, getTransitionInfo } from './workflow-service';
 import { DEFAULT_WORKFLOW_ID } from '../config/workflow-constants';
-import type { Project, AddProjectData, UpdateProjectParams, FileEntry, ScheduleDetails, SurveyDetails, WorkflowHistoryEntry } from '../types/project-types';
-import { readDb, writeDb } from '../lib/database-utils';
-
-export type { Project, AddProjectData, UpdateProjectParams, FileEntry, ScheduleDetails, SurveyDetails, WorkflowHistoryEntry };
+import type { Project, AddProjectData, UpdateProjectParams, FileEntry, ScheduleDetails, SurveyDetails, WorkflowHistoryEntry } from '@/types/project-types';
+import { readDb, writeDb } from '@/lib/database-utils';
 
 const DB_BASE_PATH = process.env.DATABASE_PATH || '/app/data';
 const DB_PATH = path.join(DB_BASE_PATH, 'database', 'projects.json');

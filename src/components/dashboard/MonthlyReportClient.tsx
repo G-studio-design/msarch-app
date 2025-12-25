@@ -1,4 +1,3 @@
-
 // src/components/dashboard/MonthlyReportClient.tsx
 'use client';
 
@@ -31,10 +30,10 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, FileText, PieChart as PieChartIcon, AlertTriangle } from 'lucide-react';
-import { useLanguage, useDictionary } from '@/context/LanguageContext';
+import { useLanguage, useDictionary, type Language } from '@/context/LanguageContext';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
-import { type Project } from '../../services/project-service';
+import { type Project } from '@/types/project-types';
 import { Badge } from '@/components/ui/badge';
 import { format, parseISO, getMonth, getYear } from 'date-fns';
 import { id as idLocale, enUS as enLocale } from 'date-fns/locale';
@@ -49,7 +48,6 @@ import { toPng } from 'html-to-image';
 import { cn } from '@/lib/utils';
 import { Card as ResponsiveCard } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { Language } from '@/context/LanguageContext';
 
 
 interface MonthlyReportData {
