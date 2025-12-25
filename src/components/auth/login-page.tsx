@@ -22,15 +22,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { LogIn, Loader2, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useLanguage } from '@/context/LanguageContext';
-import { getDictionary } from '@/lib/translations';
+import { useLanguage, useDictionary } from '@/context/LanguageContext';
 import type { User } from '@/types/user-types';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '../ui';
 
-const defaultDict = getDictionary('en');
-
-const getLoginSchema = (dictValidation: ReturnType<typeof getDictionary>['login']['validation']) => z.object({
+const getLoginSchema = (dictValidation: ReturnType<typeof useDictionary>['login']['validation']) => z.object({
     username: z.string().min(1, dictValidation.usernameRequired),
     password: z.string().min(1, dictValidation.passwordRequired),
 });
@@ -61,22 +58,16 @@ const LoginSkeleton = () => (
 export default function LoginPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const { language } = useLanguage();
+  const dict = useDictionary();
+  const { login: dictLogin } = dict;
   const { setCurrentUser, isHydrated } = useAuth();
   
-  const [dict, setDict] = React.useState(defaultDict.login);
   const [loginError, setLoginError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-   React.useEffect(() => {
-       const newDict = getDictionary(language);
-       setDict(newDict.login);
-   }, [language]);
-
    const loginSchema = React.useMemo(() => {
-        const validationDict = dict?.validation ?? defaultDict.login.validation;
-        return getLoginSchema(validationDict);
-   }, [dict]);
+        return getLoginSchema(dictLogin.validation);
+   }, [dictLogin.validation]);
 
   type LoginFormValues = z.infer<typeof loginSchema>;
 
@@ -86,7 +77,6 @@ export default function LoginPage() {
       username: '',
       password: '',
     },
-    context: { dict: dict?.validation },
   });
 
    React.useEffect(() => {
@@ -94,7 +84,7 @@ export default function LoginPage() {
           form.trigger();
           setLoginError(null);
        }
-   }, [dict, form, isHydrated]);
+   }, [dictLogin, form, isHydrated]);
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsSubmitting(true);
@@ -117,15 +107,15 @@ export default function LoginPage() {
         console.log('Login successful for user:', result.username, 'Roles:', result.roles);
         setCurrentUser(result as User);
         toast({
-            title: dict.success,
-            description: dict.redirecting,
+            title: dictLogin.success,
+            description: dictLogin.redirecting,
         });
         router.push('/dashboard');
 
     } catch (error: any) {
         console.error('Login error:', error);
         
-        const errorMessage = error.message || dict.invalidCredentials;
+        const errorMessage = error.message || dictLogin.invalidCredentials;
         setLoginError(errorMessage);
         
         if (errorMessage.toLowerCase().includes('invalid')) {
@@ -152,14 +142,14 @@ export default function LoginPage() {
             MsArch App
           </CardTitle>
             <CardDescription className="text-center text-muted-foreground">
-                {dict.description}
+                {dictLogin.description}
             </CardDescription>
         </CardHeader>
         <CardContent>
            {loginError && (
              <Alert variant="destructive" className="mb-4">
                <AlertTriangle className="h-4 w-4" />
-               <AlertTitle>{dict.fail}</AlertTitle>
+               <AlertTitle>{dictLogin.fail}</AlertTitle>
                <AlertDescription>{loginError}</AlertDescription>
              </Alert>
            )}
@@ -171,10 +161,10 @@ export default function LoginPage() {
                 name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{dict.usernameLabel}</FormLabel>
+                    <FormLabel>{dictLogin.usernameLabel}</FormLabel>
                     <FormControl>
                       <Input
-                         placeholder={dict.usernamePlaceholder}
+                         placeholder={dictLogin.usernamePlaceholder}
                          {...field}
                          autoComplete="off"
                          disabled={isSubmitting}
@@ -189,11 +179,11 @@ export default function LoginPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{dict.passwordLabel}</FormLabel>
+                    <FormLabel>{dictLogin.passwordLabel}</FormLabel>
                     <FormControl>
                       <Input
                         type="password"
-                        placeholder={dict.passwordPlaceholder}
+                        placeholder={dictLogin.passwordPlaceholder}
                         {...field}
                         autoComplete="current-password"
                         disabled={isSubmitting}
@@ -209,7 +199,7 @@ export default function LoginPage() {
                  disabled={isSubmitting}
               >
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
-                 {isSubmitting ? dict.loggingIn : dict.loginButton}
+                 {isSubmitting ? dictLogin.loggingIn : dictLogin.loginButton}
               </Button>
             </form>
           </Form>

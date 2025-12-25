@@ -71,8 +71,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { useLanguage } from '@/context/LanguageContext';
-import { getDictionary } from '@/lib/translations';
+import { useDictionary } from '@/context/LanguageContext';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Project, WorkflowHistoryEntry, FileEntry, UpdateProjectParams } from '@/types/project-types';
@@ -98,8 +97,6 @@ import { format, parseISO } from 'date-fns';
 import { id as IndonesianLocale, enUS as EnglishLocale } from 'date-fns/locale';
 import { API_BASE_URL } from '@/config/api-config';
 
-
-const defaultGlobalDict = getDictionary('en');
 
 const projectStatuses = [
     'Pending Offer', 'Pending Approval', 'Pending DP Invoice',
@@ -152,15 +149,13 @@ function ProjectsPageSkeleton() {
 
 export default function ProjectsPageClient() {
   const { toast } = useToast();
-  const { language } = useLanguage();
+  const dict = useDictionary();
+  const { language } = dict; // Assuming language is part of the dictionary context now
+  const { projectsPage: projectsDict, dashboardPage: dashboardDict, settingsPage: settingsDict } = dict;
+
   const { currentUser } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
-
-  const dict = React.useMemo(() => getDictionary(language), [language]);
-  const projectsDict = React.useMemo(() => dict.projectsPage, [dict]);
-  const dashboardDict = React.useMemo(() => dict.dashboardPage, [dict]);
-  const settingsDict = React.useMemo(() => dict.settingsPage, [dict]);
 
   const [isLoading, setIsLoading] = React.useState(true);
   const [allProjects, setAllProjects] = React.useState<Project[]>([]);
@@ -221,7 +216,7 @@ export default function ProjectsPageClient() {
   const fetchAllProjects = React.useCallback(async () => {
     setIsLoading(true);
     try {
-        const response = await fetch('/api/projects');
+        const response = await fetch(`${API_BASE_URL}/api/projects`);
         if (!response.ok) {
             throw new Error('Failed to fetch projects');
         }
@@ -334,7 +329,7 @@ export default function ProjectsPageClient() {
             if (checklistItems) {
                 currentStatus[division] = checklistItems.map(item => {
                     // Check if there's a file explicitly associated with this item
-                    const associatedFile = projectFiles.find(file => file.path.includes(`/${sanitizeForPath(item.name).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_`));
+                    const associatedFile = projectFiles.find(file => file.path.includes(`/${file.name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_`));
 
                     return {
                         ...item,
@@ -1327,7 +1322,7 @@ export default function ProjectsPageClient() {
             
             // Check for files associated via checklistItem name
             const associatedFile = projectFiles.find(file => 
-              file.path.includes(`/${sanitizeForPath(reqName).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_`)
+              file.path.includes(`/${file.name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_`)
             );
             
             if (associatedFile) {

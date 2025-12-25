@@ -45,15 +45,14 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { useLanguage } from '@/context/LanguageContext';
-import { getDictionary } from '@/lib/translations';
+import { useDictionary } from '@/context/LanguageContext';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { Notification } from '@/services/notification-service';
 import { API_BASE_URL } from '@/config/api-config';
 
-type LayoutDict = ReturnType<typeof getDictionary>['dashboardLayout'];
+type LayoutDict = ReturnType<typeof useDictionary>['dashboardLayout'];
 
 type MenuItem = {
   href: string;
@@ -94,7 +93,9 @@ interface DashboardLayoutWrapperProps {
 
 
 export default function DashboardLayoutWrapper({ children, attendanceEnabled }: DashboardLayoutWrapperProps) {
-  const { language } = useLanguage();
+  const dict = useDictionary();
+  const { layoutDict, notifications: notificationsDict, manageUsersPage: manageUsersDict } = dict;
+
   const { currentUser, logout } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -127,15 +128,6 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
       };
     }
   }, [router]);
-
-  const { layoutDict, notificationsDict, manageUsersDict } = useMemo(() => {
-    const currentDict = getDictionary(language);
-    return {
-      layoutDict: currentDict.dashboardLayout,
-      notificationsDict: currentDict.notifications,
-      manageUsersDict: currentDict.manageUsersPage,
-    };
-  }, [language]);
 
 
   const [notifications, setNotifications] = useState<Notification[]>([]);

@@ -33,8 +33,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, XCircle, Loader2, Inbox, MessageSquareText } from 'lucide-react';
-import { useLanguage } from '@/context/LanguageContext';
-import { getDictionary } from '@/lib/translations';
+import { useDictionary } from '@/context/LanguageContext';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { LeaveRequest } from '@/types/leave-request-types';
@@ -43,19 +42,16 @@ import { id as IndonesianLocale, enUS as EnglishLocale } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
-const defaultDict = getDictionary('en');
-
 interface LeaveApprovalsClientProps {
   initialRequests: LeaveRequest[];
 }
 
 export default function LeaveApprovalsClient({ initialRequests }: LeaveApprovalsClientProps) {
   const { currentUser } = useAuth();
-  const { language } = useLanguage();
+  const dict = useDictionary();
+  const { leaveApprovalsPage: leaveApprovalsDict, manageUsersPage } = dict;
+  
   const { toast } = useToast();
-
-  const [dict, setDict] = React.useState(defaultDict);
-  const [leaveApprovalsDict, setLeaveApprovalsDict] = React.useState(defaultDict.leaveApprovalsPage);
 
   const [pendingRequests, setPendingRequests] = React.useState<LeaveRequest[]>([]);
   const [isProcessing, setIsProcessing] = React.useState<string | false>(false);
@@ -65,16 +61,10 @@ export default function LeaveApprovalsClient({ initialRequests }: LeaveApprovals
   const [rejectionReason, setRejectionReason] = React.useState('');
 
   React.useEffect(() => {
-    const newDictData = getDictionary(language);
-    setDict(newDictData);
-    setLeaveApprovalsDict(newDictData.leaveApprovalsPage);
-  }, [language]);
-
-  React.useEffect(() => {
     setPendingRequests(initialRequests.filter(req => req.status === 'Pending'));
   }, [initialRequests]);
 
-  const currentLocale = language === 'id' ? IndonesianLocale : EnglishLocale;
+  const currentLocale = dict.language === 'id' ? IndonesianLocale : EnglishLocale;
 
   const fetchPendingRequests = React.useCallback(async () => {
     if (currentUser && currentUser.roles.includes('Owner')) {
@@ -174,10 +164,10 @@ export default function LeaveApprovalsClient({ initialRequests }: LeaveApprovals
       <div className="container mx-auto py-4 px-4 md:px-6">
         <Card className="border-destructive">
           <CardHeader>
-            <CardTitle className="text-destructive">{dict.manageUsersPage.accessDeniedTitle}</CardTitle>
+            <CardTitle className="text-destructive">{manageUsersPage.accessDeniedTitle}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p>{dict.manageUsersPage.accessDeniedDesc}</p>
+            <p>{manageUsersPage.accessDeniedDesc}</p>
           </CardContent>
         </Card>
       </div>
