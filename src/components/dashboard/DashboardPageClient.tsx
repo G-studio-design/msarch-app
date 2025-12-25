@@ -52,14 +52,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, LabelList, Cell } from "recharts";
-import { getAllProjects } from '../../services/project-service';
-import { getApprovedLeaveRequests } from '../../services/leave-request-service';
-import { getAllHolidays } from '../../services/holiday-service';
-import { getAllUsersForDisplay } from '../../services/user-service';
-import { getTodaysAttendanceForAllUsers } from '../../services/attendance-service';
-import { getAppSettings } from '../../services/settings-service';
 import { Skeleton } from '@/components/ui/skeleton';
-
 
 // Unified event type for the calendar
 type CalendarEventType = 'sidang' | 'survey' | 'leave' | 'holiday' | 'company_event';
@@ -91,78 +84,32 @@ const getProgressColor = (progress: number, status: string): string => {
     return 'hsl(0 84.2% 60.2%)'; // Destructive (Red)
 };
 
-async function getDashboardData() {
-  const [
-    projects,
-    leaveRequests,
-    holidays,
-    allUsers,
-    todaysAttendance,
-    settings,
-  ] = await Promise.all([
-    getAllProjects(),
-    getApprovedLeaveRequests(),
-    getAllHolidays(),
-    getAllUsersForDisplay(),
-    getTodaysAttendanceForAllUsers(),
-    getAppSettings()
-  ]);
-
-  return {
-    projects,
-    leaveRequests,
-    holidays,
-    allUsers,
-    todaysAttendance,
-    attendanceEnabled: settings.feature_attendance_enabled,
-  };
+interface DashboardData {
+    projects: Project[];
+    leaveRequests: LeaveRequest[];
+    holidays: HolidayEntry[];
+    allUsers: Omit<User, 'password'>[];
+    todaysAttendance: AttendanceRecord[];
+    attendanceEnabled: boolean;
 }
 
-function DashboardSkeleton() {
-    return (
-      <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <Skeleton className="h-10 w-2/5" />
-          <Skeleton className="h-10 w-44" />
-        </div>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-6">
-            <Card><CardHeader><Skeleton className="h-6 w-1/3 mb-2" /><Skeleton className="h-4 w-2/3" /></CardHeader><CardContent><Skeleton className="h-40 w-full" /></CardContent></Card>
-            <Card><CardHeader><Skeleton className="h-6 w-1/3 mb-2" /><Skeleton className="h-4 w-1/2" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
-          </div>
-          <div className="lg:col-span-1 space-y-6">
-            <Card><CardHeader><Skeleton className="h-6 w-1/2 mb-2" /><Skeleton className="h-4 w-full" /></CardHeader><CardContent><Skeleton className="h-80 w-full" /></CardContent></Card>
-          </div>
-        </div>
-      </div>
-    );
+interface DashboardPageClientProps {
+  initialData: DashboardData;
 }
 
-export function DashboardPageClient({ initialData: unusedInitialData }: { initialData: any }) {
+
+export function DashboardPageClient({ initialData }: DashboardPageClientProps) {
   const { currentUser } = useAuth();
   const { language } = useLanguage();
-  const [data, setData] = useState<Awaited<ReturnType<typeof getDashboardData>> | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
+  
   const dashboardDict = useMemo(() => getDictionary(language).dashboardPage, [language]);
   const projectsDict = useMemo(() => getDictionary(language).projectsPage, [language]);
   const currentLocale = useMemo(() => language === 'id' ? idLocale : enLocale, [language]);
   
-  useEffect(() => {
-    async function loadData() {
-      if (!currentUser) return; // Don't fetch if no user
-      setIsLoading(true);
-      const fetchedData = await getDashboardData();
-      setData(fetchedData);
-      setIsLoading(false);
-    }
-    loadData();
-  }, [currentUser]); // Re-fetch when user logs in
-
-  const { projects = [], leaveRequests = [], holidays = [], allUsers = [], todaysAttendance = [], attendanceEnabled = false } = data || {};
+  const { projects, leaveRequests, holidays, allUsers, todaysAttendance, attendanceEnabled } = initialData;
 
   const { eventsByDate, upcomingEvents } = useMemo(() => {
-    if (!data) return { eventsByDate: {}, upcomingEvents: [] };
+    if (!initialData) return { eventsByDate: {}, upcomingEvents: [] };
 
     const eventMap: Record<string, UnifiedEvent[]> = {};
     const upcoming: UnifiedEvent[] = [];
@@ -217,10 +164,10 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
     upcoming.sort((a,b) => a.date.getTime() - b.date.getTime());
 
     return { eventsByDate: eventMap, upcomingEvents: upcoming };
-  }, [projects, leaveRequests, holidays, data]);
+  }, [projects, leaveRequests, holidays, initialData]);
 
   const attendanceSummary = useMemo(() => {
-    if (!data) return { isHoliday: false, holidayName: null, checkedIn: 0, onLeave: 0, notCheckedIn: 0 };
+    if (!initialData) return { isHoliday: false, holidayName: null, checkedIn: 0, onLeave: 0, notCheckedIn: 0 };
     const today = new Date();
     const todayHoliday = holidays.find(h => isSameDay(parseISO(h.date), today));
 
@@ -246,7 +193,7 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
       onLeave: onLeaveToday.size,
       notCheckedIn: notCheckedInCount,
     };
-  }, [allUsers, todaysAttendance, leaveRequests, holidays, data]);
+  }, [allUsers, todaysAttendance, leaveRequests, holidays, initialData]);
 
   const activeProjects = useMemo(() => {
     return projects.filter(p => p.status !== 'Completed' && p.status !== 'Canceled');
@@ -283,10 +230,6 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
   }, [currentUser]);
   
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-
-  if (isLoading || !data) {
-    return <DashboardSkeleton />;
-  }
 
   return (
       <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">

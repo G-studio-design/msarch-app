@@ -3,6 +3,12 @@ import React, { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DashboardPageClient } from '@/components/dashboard/DashboardPageClient';
 import { Card, CardContent, CardHeader } from '@/components/ui';
+import { getAllProjects } from '@/services/project-service';
+import { getApprovedLeaveRequests } from '@/services/leave-request-service';
+import { getAllHolidays } from '@/services/holiday-service';
+import { getAllUsersForDisplay } from '@/services/user-service';
+import { getTodaysAttendanceForAllUsers } from '@/services/attendance-service';
+import { getAppSettings } from '@/services/settings-service';
 
 function DashboardSkeleton() {
     return (
@@ -24,24 +30,42 @@ function DashboardSkeleton() {
     );
 }
 
+async function getDashboardData() {
+  const [
+    projects,
+    leaveRequests,
+    holidays,
+    allUsers,
+    todaysAttendance,
+    settings,
+  ] = await Promise.all([
+    getAllProjects(),
+    getApprovedLeaveRequests(),
+    getAllHolidays(),
+    getAllUsersForDisplay(),
+    getTodaysAttendanceForAllUsers(),
+    getAppSettings()
+  ]);
 
-// This is a React Server Component (RSC)
-// It now acts as a layout shell, composing smaller, independent Server Components.
-export default async function DashboardPage() {
-  // We pass a dummy initialData object or remove it entirely, 
-  // as the new child components will fetch their own data.
-  const initialData = {
-    projects: [],
-    leaveRequests: [],
-    holidays: [],
-    allUsers: [],
-    todaysAttendance: [],
-    attendanceEnabled: false, // This will be refetched where needed or passed differently
+  return {
+    projects,
+    leaveRequests,
+    holidays,
+    allUsers,
+    todaysAttendance,
+    attendanceEnabled: settings.feature_attendance_enabled,
   };
+}
+
+
+// This is now a React Server Component (RSC).
+// It fetches all data on the server and passes it down to the client component.
+export default async function DashboardPage() {
+  // Fetch all necessary data here, on the server.
+  const initialData = await getDashboardData();
 
   return (
-    // Wrap the entire client component in Suspense
-    // to ensure client-side rendering is handled gracefully.
+    // Wrap the client component in Suspense to handle the data fetching period gracefully.
     <Suspense fallback={<DashboardSkeleton />}>
       <DashboardPageClient initialData={initialData} />
     </Suspense>
