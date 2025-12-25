@@ -5,7 +5,6 @@ import React, { useEffect, useState } from 'react';
 import DashboardLayoutWrapper from '@/components/layout/DashboardLayoutWrapper';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { isAttendanceFeatureEnabled } from '@/services/settings-service';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Define a full-page skeleton for the loading state
@@ -43,8 +42,17 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const fetchSettings = async () => {
-      const enabled = await isAttendanceFeatureEnabled();
-      setAttendanceEnabled(enabled);
+      try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+            const settings = await response.json();
+            setAttendanceEnabled(settings.feature_attendance_enabled);
+        } else {
+            console.error("Failed to fetch app settings for layout.");
+        }
+      } catch (error) {
+        console.error("Error fetching app settings:", error);
+      }
     };
     fetchSettings();
   }, []);
