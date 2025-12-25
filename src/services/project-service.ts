@@ -13,7 +13,7 @@ import { readDb, writeDb } from '../lib/database-utils';
 
 export type { Project, AddProjectData, UpdateProjectParams, FileEntry, ScheduleDetails, SurveyDetails, WorkflowHistoryEntry };
 
-const DB_BASE_PATH = process.env.DATABASE_PATH || path.resolve(process.cwd());
+const DB_BASE_PATH = process.env.DATABASE_PATH || '/app/data';
 const DB_PATH = path.join(DB_BASE_PATH, 'database', 'projects.json');
 const PROJECT_FILES_BASE_DIR = path.join(DB_BASE_PATH, 'project_files');
 

@@ -30,12 +30,12 @@ services:
       # All services will use this as their base path.
       - DATABASE_PATH=/app/data
     volumes:
-      # Map folder data eksternal Anda di NAS ke folder /app/data di dalam kontainer.
-      # This connects your external data folder on the NAS to the /app/data folder inside the container.
-      - ./msarch-data:/app/data
-      # Map folder unggahan publik (seperti avatar) ke folder public/uploads di dalam kontainer.
-      # This connects your public uploads folder (for avatars, etc.) to the public/uploads folder inside the container.
-      - ./msarch-data/uploads:/app/public/uploads
+      # Map folder 'database' dari root proyek Anda ke folder '/app/data/database' di dalam kontainer.
+      # This connects your project's root 'database' folder to the '/app/data/database' folder inside the container.
+      - ./database:/app/data/database
+      # Map folder 'uploads' dari root proyek Anda ke folder '/app/data/uploads' di dalam kontainer.
+      # This connects your project's root 'uploads' folder to the '/app/data/uploads' folder inside the container.
+      - ./uploads:/app/data/uploads
     # Menambahkan layanan 'app' ke jaringan 'msarch-net'
     # Add the 'app' service to the 'msarch-net' network
     networks:

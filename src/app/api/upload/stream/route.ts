@@ -10,7 +10,7 @@ import { addFilesToProject } from '@/services/project-service';
 
 const pump = promisify(pipeline);
 
-const DB_BASE_PATH = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'database');
+const DB_BASE_PATH = process.env.DATABASE_PATH || '/app/data';
 const PROJECT_FILES_BASE_DIR = path.join(DB_BASE_PATH, 'project_files');
 
 export const maxDuration = 300; // 5-minute timeout for large file uploads

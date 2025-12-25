@@ -6,7 +6,7 @@ import { notifyUsersByRole, notifyUserById, type NotificationPayload } from './n
 import type { LeaveRequest, AddLeaveRequestData } from '@/types/leave-request-types';
 import { readDb, writeDb } from '../lib/database-utils';
 
-const DB_BASE_PATH = process.env.DATABASE_PATH || path.resolve(process.cwd());
+const DB_BASE_PATH = process.env.DATABASE_PATH || '/app/data';
 const DB_PATH = path.join(DB_BASE_PATH, 'database', 'leave_requests.json');
 
 export async function addLeaveRequest(data: AddLeaveRequestData): Promise<LeaveRequest> {

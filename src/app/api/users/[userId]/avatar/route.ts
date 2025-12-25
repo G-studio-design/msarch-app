@@ -5,8 +5,8 @@ import { join } from 'path';
 import mime from 'mime';
 import { updateUserProfilePicture, findUserById } from '@/services/user-service';
 
-// Correctly define the UPLOAD_DIR based on the environment variable from docker-compose.yml
-const UPLOAD_DIR = join(process.env.DATABASE_PATH || join(process.cwd(), 'database'), 'uploads', 'avatars');
+// The DATABASE_PATH env var points to /app/data, so we construct the path from there
+const UPLOAD_DIR = join(process.env.DATABASE_PATH || '/app/data', 'uploads', 'avatars');
 
 
 async function ensureDirectoryExists(directoryPath: string) {
@@ -36,10 +36,10 @@ export async function GET(
       return new NextResponse('Avatar not found', { status: 404 });
     }
 
-    // The profilePictureUrl now only stores the filename
+    // The profilePictureUrl stores the filename relative to the 'uploads' dir
     const filename = user.profilePictureUrl;
     // Construct the absolute path to the file on the server's filesystem inside the container
-    const filePath = join(UPLOAD_DIR, filename);
+    const filePath = join(UPLOAD_DIR, path.basename(filename));
 
     const fileBuffer = await readFile(filePath);
     
