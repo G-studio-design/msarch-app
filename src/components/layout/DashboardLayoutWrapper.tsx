@@ -93,12 +93,36 @@ interface DashboardLayoutWrapperProps {
   attendanceEnabled: boolean;
 }
 
+// A simple skeleton to show while the main layout and its hooks are loading.
+function DashboardLoadingSkeleton() {
+    return (
+         <div className="flex min-h-screen w-full bg-muted/40">
+            <div className="flex-1 flex flex-col">
+                 <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b bg-background px-4 sm:px-6">
+                    <div className="flex items-center gap-2">
+                        <Skeleton className="h-6 w-6 rounded-md" />
+                        <Skeleton className="h-5 w-24" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Skeleton className="h-10 w-10 rounded-md" />
+                        <Skeleton className="h-10 w-10 rounded-md" />
+                    </div>
+                 </header>
+                 <main className="flex-1 overflow-y-auto p-4 md:p-6">
+                     <div className="flex justify-center items-center h-[calc(100vh-56px)]">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                     </div>
+                </main>
+            </div>
+        </div>
+    );
+}
+
 export default function DashboardLayoutWrapper({ children, attendanceEnabled }: DashboardLayoutWrapperProps) {
   const { language } = useLanguage();
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, isHydrated } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
-  const [isClient, setIsClient] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   
@@ -106,10 +130,6 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
   const [avatarKey, setAvatarKey] = useState(Date.now());
 
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-  
   // Update the avatarKey whenever the profile picture URL changes in the context
   useEffect(() => {
       if (currentUser?.profilePictureUrl) {
@@ -140,7 +160,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
 
   const { layoutDict, notificationsDict, manageUsersDict } = useMemo(() => {
     const defaultDict = getDictionary('en'); 
-    if (!isClient) {
+    if (!isHydrated) {
       return {
         layoutDict: defaultDict.dashboardLayout,
         notificationsDict: defaultDict.notifications,
@@ -153,7 +173,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
       notificationsDict: currentDict.notifications,
       manageUsersDict: currentDict.manageUsersPage,
     };
-  }, [isClient, language]);
+  }, [isHydrated, language]);
 
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -161,7 +181,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
 
   // Check notification permission status on load
   useEffect(() => {
-    if (isClient && 'Notification' in window && Notification.permission === 'denied') {
+    if (isHydrated && 'Notification' in window && Notification.permission === 'denied') {
         toast({
             title: notificationsDict.permissionDeniedTitle,
             description: notificationsDict.permissionDeniedDesc,
@@ -169,11 +189,11 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
             duration: 10000
         });
     }
-  }, [isClient, toast, notificationsDict]);
+  }, [isHydrated, toast, notificationsDict]);
 
 
   const fetchNotifications = useCallback(async () => {
-    if (isClient && currentUser) {
+    if (isHydrated && currentUser) {
       try {
         const response = await fetch(`${API_BASE_URL}/api/notifications?userId=${currentUser.id}`);
         if (!response.ok) {
@@ -193,16 +213,16 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
          console.error("Failed to fetch notifications:", error);
       }
     }
-  }, [isClient, currentUser]);
+  }, [isHydrated, currentUser]);
   
   // Effect for fetching in-app notifications (bell icon)
   useEffect(() => {
-    if (isClient && currentUser) {
+    if (isHydrated && currentUser) {
       fetchNotifications();
       const intervalId = setInterval(fetchNotifications, 30000); 
       return () => clearInterval(intervalId);
     }
-  }, [isClient, currentUser, fetchNotifications]);
+  }, [isHydrated, currentUser, fetchNotifications]);
 
 
   useEffect(() => {
@@ -230,7 +250,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
 
 
   const visibleMenuItems = useMemo(() => {
-    if (isClient && currentUser && Array.isArray(currentUser.roles)) {
+    if (isHydrated && currentUser && Array.isArray(currentUser.roles)) {
       return menuItems.filter(item => {
         const hasRole = item.roles.some(requiredRole => currentUser.roles.includes(requiredRole));
         if (item.featureFlag) {
@@ -241,14 +261,14 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
       });
     }
     return [];
-  }, [isClient, currentUser, menuItems, attendanceEnabled]);
+  }, [isHydrated, currentUser, menuItems, attendanceEnabled]);
 
-  const RoleIcon = useMemo(() => isClient && currentUser && currentUser.roles && currentUser.roles.length > 0 ? getUserRoleIcon(currentUser.roles[0]) : User, [isClient, currentUser]);
+  const RoleIcon = useMemo(() => isHydrated && currentUser && currentUser.roles && currentUser.roles.length > 0 ? getUserRoleIcon(currentUser.roles[0]) : User, [isHydrated, currentUser]);
 
 
    const getTranslatedRole = useCallback((role: string | string[]): string => {
        const rolesDict = manageUsersDict.roles as Record<string, string>;
-       if (!isClient || !rolesDict || !role) return Array.isArray(role) ? role.join(', ') : (role || '');
+       if (!isHydrated || !rolesDict || !role) return Array.isArray(role) ? role.join(', ') : (role || '');
        
        const rolesToTranslate = Array.isArray(role) ? role : [role];
        
@@ -256,11 +276,11 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
            const roleKey = r.trim().replace(/\s+/g, '').toLowerCase() as keyof typeof rolesDict;
            return rolesDict?.[roleKey] || r;
        }).join(', ');
-   }, [isClient, manageUsersDict]);
+   }, [isHydrated, manageUsersDict]);
 
 
    const formatTimestamp = useCallback((timestamp: string): string => {
-       if (!isClient) return '...';
+       if (!isHydrated) return '...';
 
        const now = new Date();
        const past = new Date(timestamp);
@@ -273,7 +293,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
        if (diffMinutes < 60) return `${diffMinutes}m ago`;
        if (diffHours < 24) return `${diffHours}h ago`;
        return `${diffDays}d ago`;
-   }, [isClient]);
+   }, [isHydrated]);
 
    const handleNotificationClick = useCallback(async (notification: Notification) => {
     setIsPopoverOpen(false);
@@ -332,21 +352,8 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
     setIsSheetOpen(false);
   };
   
-  if (!isClient || !currentUser) {
-      return (
-          <div className="flex min-h-screen w-full bg-muted/40">
-             <div className="flex-1 flex flex-col">
-                  <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b bg-background px-4 sm:px-6">
-                     {/* Skeleton Header */}
-                  </header>
-                  <main className="flex-1 overflow-y-auto p-4 md:p-6">
-                      <div className="flex justify-center items-center h-[calc(100vh-56px)]">
-                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                      </div>
-                 </main>
-             </div>
-         </div>
-      );
+  if (!isHydrated || !currentUser) {
+      return <DashboardLoadingSkeleton />;
   }
 
   return (
@@ -364,7 +371,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
                 <PopoverTrigger asChild>
                     <Button variant="outline" size="icon" className="relative h-9 w-9 sm:h-10 sm:w-10">
                         <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
-                       {isClient && unreadCount > 0 && (
+                       {isHydrated && unreadCount > 0 && (
                           <Badge
                              variant="destructive"
                               className="absolute -top-1 -right-1 h-4 w-4 p-0 justify-center text-[10px] sm:text-xs"
@@ -385,7 +392,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
                       </p>
                   </div>
                    <div className="max-h-60 overflow-y-auto">
-                   {isClient && notifications.length > 0 ? (
+                   {isHydrated && notifications.length > 0 ? (
                        notifications.map(notification => (
                          <div
                              key={notification.id}
@@ -405,7 +412,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
                            </div>
                          </div>
                        ))
-                   ) : isClient ? ( 
+                   ) : isHydrated ? ( 
                      <div className="p-4 text-center text-sm text-muted-foreground flex flex-col items-center gap-2">
                        <MessageSquareWarning className="h-6 w-6" />
                        {notificationsDict.empty}
@@ -431,7 +438,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
                   </SheetHeader>
 
                    <nav className="flex-1 space-y-2 overflow-y-auto">
-                     {isClient && currentUser && layoutDict ? (
+                     {isHydrated && currentUser && layoutDict ? (
                          visibleMenuItems.map((item) => (
                            <Link
                              key={item.href}
@@ -458,7 +465,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
                    <Separator className="my-4 bg-primary-foreground/20" />
 
                    <div className="mt-auto space-y-4">
-                     {isClient && currentUser ? (
+                     {isHydrated && currentUser ? (
                        <div className="flex items-center gap-3 rounded-md p-2">
                          <Avatar className="h-10 w-10 border-2 border-primary-foreground/30">
                            <AvatarImage key={avatarKey} src={`${API_BASE_URL}/api/users/${currentUser.id}/avatar?v=${avatarKey}`} alt={currentUser.displayName || currentUser.username} />
@@ -489,7 +496,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
                       variant="ghost"
                       className="w-full justify-start gap-3 text-primary-foreground/90 hover:bg-primary-foreground/10 hover:text-primary-foreground"
                       onClick={handleLogout}
-                      disabled={!isClient || !currentUser}
+                      disabled={!isHydrated || !currentUser}
                     >
                       <LogOut className="h-5 w-5" />
                       <span>{layoutDict.logout}</span>
@@ -502,7 +509,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
 
 
            <main className="flex-1 overflow-y-auto p-4 md:p-6">
-             {isClient && currentUser ? children : (
+             {isHydrated && currentUser ? children : (
                    <div className="flex justify-center items-center h-[calc(100vh-56px)]">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </div>

@@ -6,22 +6,11 @@ import React from 'react';
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import DashboardLayoutWrapper from './DashboardLayoutWrapper';
+import { useAuth } from '@/context/AuthContext';
 
 interface DashboardClientLayoutProps {
   children: ReactNode;
   attendanceEnabled: boolean;
-}
-
-// This component is a Server Component that wraps the actual client-heavy layout.
-// It uses Suspense to handle client-side rendering of the wrapper.
-export default function DashboardClientLayout({ children, attendanceEnabled }: DashboardClientLayoutProps) {
-  return (
-    <Suspense fallback={<DashboardLoadingSkeleton />}>
-      <DashboardLayoutWrapper attendanceEnabled={attendanceEnabled}>
-        {children}
-      </DashboardLayoutWrapper>
-    </Suspense>
-  );
 }
 
 // A simple skeleton to show while the main layout and its hooks are loading.
@@ -40,4 +29,21 @@ function DashboardLoadingSkeleton() {
             </div>
         </div>
     );
+}
+
+
+// This component is a Server Component that wraps the actual client-heavy layout.
+// It uses Suspense to handle client-side rendering of the wrapper.
+export default function DashboardClientLayout({ children, attendanceEnabled }: DashboardClientLayoutProps) {
+  const { isHydrated } = useAuth();
+  
+  if (!isHydrated) {
+    return <DashboardLoadingSkeleton />;
+  }
+
+  return (
+    <DashboardLayoutWrapper attendanceEnabled={attendanceEnabled}>
+      {children}
+    </DashboardLayoutWrapper>
+  );
 }
