@@ -324,23 +324,16 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         (Object.keys(requiredChecklists) as (keyof ParallelUploadChecklist)[]).forEach(division => {
             const checklistItems = requiredChecklists[division];
             if (checklistItems) {
-                const divisionFiles = projectFiles.filter(file => file.uploadedBy === division);
-
                 currentStatus[division] = checklistItems.map(item => {
-                    const itemNameKeywords = item.name.toLowerCase().split(' ').filter(k => k);
-                    const uploadedFile = divisionFiles.find(file => {
-                        const fileNameLower = file.name.toLowerCase();
-                        // This logic becomes a fallback or can be adjusted.
-                        // The primary association will be through the explicit upload action.
-                        // For now, we check if the file name CONTAINS keywords.
-                        return itemNameKeywords.every(keyword => fileNameLower.includes(keyword));
-                    });
+                    // Check if there's a file explicitly associated with this item
+                    const associatedFile = projectFiles.find(file => file.path.includes(`/${sanitizeForPath(item.name).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_`));
+
                     return {
                         ...item,
-                        uploaded: !!uploadedFile,
-                        filePath: uploadedFile?.path,
-                        uploadedBy: uploadedFile?.uploadedBy,
-                        originalFileName: uploadedFile?.name,
+                        uploaded: !!associatedFile,
+                        filePath: associatedFile?.path,
+                        uploadedBy: associatedFile?.uploadedBy,
+                        originalFileName: associatedFile?.name,
                     };
                 });
             }
@@ -510,26 +503,25 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     return currentUser.roles[0];
   }, [currentUser, selectedProject]);
 
-  const uploadFileWithFormData = async (file: File, formDataPayload: Record<string, string | null>): Promise<any> => {
-      const formData = new FormData();
-      formData.append('file', file);
-      for (const key in formDataPayload) {
-          if (formDataPayload[key] !== null) {
-              formData.append(key, formDataPayload[key]!);
-          }
-      }
+  const uploadFileWithStreaming = async (file: File, queryParams: Record<string, string | null>): Promise<any> => {
+      const queryString = new URLSearchParams(
+        Object.entries(queryParams).filter(([, value]) => value !== null) as [string, string][]
+      ).toString();
 
-      const response = await fetch(`${API_BASE_URL}/api/upload-file`, {
+      const response = await fetch(`${API_BASE_URL}/api/upload/stream?${queryString}`, {
           method: 'POST',
-          body: formData,
+          body: file,
+          headers: { 'Content-Type': 'application/octet-stream' },
+          cache: 'no-store',
       });
-
+      
       if (!response.ok) {
           const errorData = await response.json().catch(() => ({ message: `Server error: ${response.statusText}` }));
           throw new Error(errorData.message || `Failed to upload ${file.name}.`);
       }
       return response.json();
   };
+
 
   const handleProgressSubmit = React.useCallback(async (actionTaken: string = 'submitted', filesToSubmit?: File[], descriptionForSubmit?: string, associatedChecklistItem?: string, divisionForFile?: string) => {
     if (!currentUser || !Array.isArray(currentUser.roles) || !selectedProject) {
@@ -543,16 +535,13 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     const isDecisionOrTerminalAction = ['approved', 'rejected', 'completed', 'revise_offer', 'revise_dp', 'canceled_after_sidang', 'revision_completed_proceed_to_invoice', 'all_files_confirmed', 'reschedule_sidang'].includes(actionTaken);
     const isSchedulingAction = actionTaken === 'scheduled' || actionTaken === 'reschedule_survey' || actionTaken === 'reschedule_survey_from_parallel';
     const isSurveySchedulingAction = selectedProject.status === 'Pending Survey Details' && actionTaken === 'submitted';
-    const isArchitectInitialImageUpload = actionTaken === 'architect_uploaded_initial_images_for_struktur';
     
     setIsSubmitting(true);
-    if (isArchitectInitialImageUpload) setIsSubmittingInitialImages(true);
-
     let newlyUpdatedProject: Project | null = null;
     let hadError = false;
 
     try {
-        if (!isDecisionOrTerminalAction && !isSchedulingAction && !isSurveySchedulingAction && !isArchitectInitialImageUpload && !currentDescription && currentFiles.length === 0 ) {
+        if (!isDecisionOrTerminalAction && !isSchedulingAction && !isSurveySchedulingAction && !currentDescription && currentFiles.length === 0 ) {
           toast({ variant: 'destructive', title: projectsDict.toast.missingInput, description: projectsDict.toast.provideDescOrFile });
           hadError = true;
           return;
@@ -563,34 +552,33 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             return;
         }
 
-        // New Logic: Upload files one by one using FormData
         if (currentFiles.length > 0) {
             for (const file of currentFiles) {
-                const formDataPayload: Record<string, string | null> = {
+                const queryParams = {
+                  filename: file.name,
                   projectId: selectedProject.id,
                   userId: currentUser.id,
                   uploaderRole: divisionForFile || actingRole || currentUser.roles[0],
-                  note: currentDescription, // The note is associated with each file upload
+                  note: currentDescription,
                   associatedChecklistItem: associatedChecklistItem || null,
                 };
                 try {
-                  await uploadFileWithFormData(file, formDataPayload);
+                  await uploadFileWithStreaming(file, queryParams);
                 } catch (error: any) {
                     console.error("Error uploading file:", file.name, error);
                     toast({ variant: 'destructive', title: projectsDict.toast.uploadError, description: error.message });
                     hadError = true;
-                    return; // Stop on first upload error
+                    return; 
                 }
             }
         }
         
-        // After all files are uploaded (or if no files), submit the final workflow update
         const updatePayload: UpdateProjectParams = {
             projectId: selectedProject.id,
             updaterRoles: currentUser.roles,
             updaterUsername: currentUser.username,
             actionTaken: actionTaken,
-            note: currentFiles.length > 0 ? undefined : (currentDescription || undefined), // Only send note if no files were part of this action
+            note: currentFiles.length > 0 ? undefined : (currentDescription || undefined),
             scheduleDetails: (selectedProject.status === 'Pending Scheduling' && actionTaken === 'scheduled' && scheduleDate) ? {
                 date: format(scheduleDate, 'yyyy-MM-dd'),
                 time: scheduleTime,
@@ -616,19 +604,12 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         
         toast({ title: projectsDict.toast.progressSubmitted, description: "Project has been updated successfully." });
 
-        // Reset form states
         setDescription('');
         setUploadedFiles([]);
         if (actionTaken.includes('revise')) { setRevisionNote(''); }
-        if (isArchitectInitialImageUpload) {
-            setInitialImageFiles([]);
-            setInitialImageDescription('');
-            setIsInitialImageUploadDialogOpen(false);
-        }
         if (uploadDialogState.isOpen) {
           setUploadDialogState({ isOpen: false, item: null, division: null });
         }
-
 
       } catch (error: any) {
          console.error("Error updating project:", error);
@@ -636,7 +617,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             toast({ variant: 'destructive', title: projectsDict.toast.updateError, description: error.message || projectsDict.toast.failedToSubmitProgress });
          }
       } finally {
-        // This block runs regardless of success or failure
         if (selectedProject) {
             newlyUpdatedProject = await fetchProjectById(selectedProject.id);
             if (newlyUpdatedProject) {
@@ -645,7 +625,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             }
         }
         setIsSubmitting(false);
-        if (isArchitectInitialImageUpload) setIsSubmittingInitialImages(false);
       }
   }, [currentUser, selectedProject, uploadedFiles, description, scheduleDate, scheduleTime, scheduleLocation, surveyDate, surveyTime, surveyDescription, projectsDict, toast, actingRole, uploadDialogState.isOpen, rescheduleDate, rescheduleTime, fetchProjectById]);
 
@@ -657,14 +636,15 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     setIsUploadingAdminFiles(true);
     try {
         for (const file of adminFiles) {
-            const formDataPayload = {
+            const queryParams = {
+              filename: file.name,
               projectId: selectedProject.id,
               userId: currentUser.id,
               uploaderRole: currentUser.roles[0],
               note: adminFileNote,
               associatedChecklistItem: null,
             };
-            await uploadFileWithFormData(file, formDataPayload);
+            await uploadFileWithStreaming(file, queryParams);
         }
         
         const newlyUpdatedProject = await fetchProjectById(selectedProject.id);
@@ -1331,29 +1311,28 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     }, [selectedProject]);
 
     const finalDocsChecklistStatus = React.useMemo(() => {
-        if (selectedProject?.status !== 'Pending Final Documents') return null;
+        if (!selectedProject || selectedProject.status !== 'Pending Final Documents') return null;
         const projectFiles = selectedProject.files || [];
-        
-        const hasGeneralFinalDoc = projectFiles.some(file => 
-            file.uploadedBy === 'Admin Proyek' && 
-            file.name.toLowerCase().includes('dokumen_final')
-        );
 
         return finalDocRequirements.map(reqName => {
             const reqKeywords = reqName.toLowerCase().split(' ').filter(k => k);
             
-            // Special handling for the first item "Dokumen Final"
-            if (reqName === 'Dokumen Final' && hasGeneralFinalDoc) {
-                const uploadedFile = projectFiles.find(file => file.name.toLowerCase().includes('dokumen_final'));
-                return {
-                    name: reqName,
-                    uploaded: true,
-                    filePath: uploadedFile?.path,
-                    originalFileName: uploadedFile?.name,
-                    uploadedBy: uploadedFile?.uploadedBy
-                };
+            // Check for files associated via checklistItem name
+            const associatedFile = projectFiles.find(file => 
+              file.path.includes(`/${sanitizeForPath(reqName).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_`)
+            );
+            
+            if (associatedFile) {
+              return {
+                name: reqName,
+                uploaded: true,
+                filePath: associatedFile.path,
+                originalFileName: associatedFile.name,
+                uploadedBy: associatedFile.uploadedBy
+              };
             }
 
+            // Fallback to keyword matching for older data
             const uploadedFile = projectFiles.find(file => {
                 const fileNameLower = file.name.toLowerCase();
                 const allKeywordsMatch = reqKeywords.every(keyword => fileNameLower.includes(keyword));
@@ -1803,60 +1782,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                     </CardContent>
                 </Card>
                   
-                  {showArchitectInitialImageUploadSection && (
-                    <Card className="mb-6 shadow-md">
-                        <CardHeader className="p-4 sm:p-6">
-                            <CardTitle>{projectsDict.architectUploadInitialImagesTitle}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-4 sm:p-6 pt-0">
-                            <Dialog open={isInitialImageUploadDialogOpen} onOpenChange={setIsInitialImageUploadDialogOpen}>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline" className="w-full sm:w-auto">
-                                        <Upload className="mr-2 h-4 w-4" /> {projectsDict.architectUploadInitialImagesButton}
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent className="sm:max-w-md">
-                                    <DialogHeader>
-                                        <DialogTitle>{projectsDict.architectUploadInitialImagesDialogTitle}</DialogTitle>
-                                        <DialogDescription>{projectsDict.architectUploadInitialImagesDialogDesc}</DialogDescription>
-                                    </DialogHeader>
-                                    <div className="space-y-4 py-2">
-                                        <div className="grid w-full items-center gap-1.5">
-                                            <Label htmlFor="initial-image-description">{projectsDict.descriptionLabel} ({projectsDict.optionalNoteLabel})</Label>
-                                            <Textarea id="initial-image-description" placeholder={projectsDict.revisionFilesDescriptionPlaceholder} value={initialImageDescription} onChange={(e) => setInitialImageDescription(e.target.value)} disabled={isSubmittingInitialImages}/>
-                                        </div>
-                                        <div className="grid w-full items-center gap-1.5">
-                                            <Label htmlFor="initial-image-files">{projectsDict.attachFilesLabel}</Label>
-                                            <Input id="initial-image-files" type="file" multiple onChange={handleInitialImageFileChange} disabled={isSubmittingInitialImages}/>
-                                        </div>
-                                        {initialImageFiles.length > 0 && (
-                                            <div className="space-y-2 rounded-md border p-3">
-                                                <Label>{projectsDict.selectedFilesLabel} ({initialImageFiles.length})</Label>
-                                                <ul className="list-disc list-inside text-sm space-y-1 max-h-32 overflow-y-auto">
-                                                {initialImageFiles.map((file, index) => ( <li key={`initial-img-${index}`} className="flex items-center justify-between group"><span className="truncate max-w-[calc(100%-4rem)] sm:max-w-xs text-muted-foreground group-hover:text-foreground">{file.name} <span className="text-xs">({(file.size / 1024).toFixed(1)} KB)</span></span><Button variant="ghost" size="sm" type="button" onClick={() => removeInitialImageFile(index)} disabled={isSubmittingInitialImages} className="opacity-50 group-hover:opacity-100 flex-shrink-0"><Trash2 className="h-4 w-4 text-destructive" /></Button></li>))}
-                                                </ul>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <DialogFooter className="pt-2 sm:justify-between">
-                                        <Button type="button" variant="outline" onClick={() => setIsInitialImageUploadDialogOpen(false)} disabled={isSubmittingInitialImages}>{projectsDict.cancelButton}</Button>
-                                        <Button
-                                            type="button"
-                                            onClick={() => handleProgressSubmit('architect_uploaded_initial_images_for_struktur', initialImageFiles, initialImageDescription)}
-                                            disabled={isSubmittingInitialImages}
-                                            className="accent-teal"
-                                        >
-                                            {isSubmittingInitialImages ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                                            {isSubmittingInitialImages ? projectsDict.submittingButton : projectsDict.submitButton}
-                                        </Button>
-                                    </DialogFooter>
-                                </DialogContent>
-                            </Dialog>
-                        </CardContent>
-                    </Card>
-                  )}
-
-
                 <Card className="shadow-md">
                     <CardHeader className="p-4 sm:p-6">
                         <CardTitle>{projectsDict.currentProjectActionsTitle || "Current Project Actions"}</CardTitle>
