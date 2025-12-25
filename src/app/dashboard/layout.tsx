@@ -1,4 +1,3 @@
-// src/app/dashboard/layout.tsx
 'use client';
 import type { ReactNode } from 'react';
 import React, { useEffect, useState } from 'react';
@@ -7,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Define a full-page skeleton for the loading state
+// A full-page skeleton for the initial loading state.
 function DashboardLoadingSkeleton() {
   return (
     <div className="flex min-h-screen w-full bg-muted/40">
@@ -41,29 +40,32 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }, [isHydrated, currentUser, router]);
 
   useEffect(() => {
+    // This effect can run safely on the client.
     const fetchSettings = async () => {
       try {
         const response = await fetch('/api/settings');
         if (response.ok) {
-            const settings = await response.json();
-            setAttendanceEnabled(settings.feature_attendance_enabled);
+          const settings = await response.json();
+          setAttendanceEnabled(settings.feature_attendance_enabled);
         } else {
-            console.error("Failed to fetch app settings for layout.");
+          console.error("Failed to fetch app settings for layout.");
         }
       } catch (error) {
         console.error("Error fetching app settings:", error);
       }
     };
-    fetchSettings();
-  }, []);
+    if (isHydrated && currentUser) {
+      fetchSettings();
+    }
+  }, [isHydrated, currentUser]);
 
-  // Show a full-page skeleton if authentication state is not yet hydrated or user is not logged in.
-  // This ensures the server and initial client render are identical (both showing the skeleton).
+  // Show a full-page loading skeleton until the auth state is confirmed.
+  // This ensures a consistent UI on both server and client initial render.
   if (!isHydrated || !currentUser) {
     return <DashboardLoadingSkeleton />;
   }
 
-  // Once the user is confirmed, render the full layout with its content.
+  // Once authenticated, render the full layout with its content.
   return (
     <DashboardLayoutWrapper attendanceEnabled={attendanceEnabled}>
       {children}
