@@ -3,7 +3,7 @@
 
 import * as path from 'path';
 import webPush, { type PushSubscription } from 'web-push';
-import { readDb, writeDb } from '@/lib/database-utils';
+import { readDb, writeDb } from '../lib/database-utils';
 import { getAllUsers, getSubscriptionsForUserIds } from './data-access/user-data';
 
 const DB_BASE_PATH = process.env.DATABASE_PATH || path.resolve(process.cwd());

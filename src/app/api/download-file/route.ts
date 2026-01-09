@@ -5,7 +5,7 @@ import * as fsSync from 'fs'; // For existsSync
 import * as path from 'path';
 import { NextRequest } from 'next/server';
 
-const DB_BASE_PATH = process.env.DATABASE_PATH || '/app/data';
+const DB_BASE_PATH = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'database');
 const PROJECT_FILES_BASE_DIR = path.join(DB_BASE_PATH, 'project_files');
 
 export async function GET(request: NextRequest) {

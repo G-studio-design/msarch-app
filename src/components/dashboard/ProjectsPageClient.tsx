@@ -1,4 +1,3 @@
-
 // src/components/dashboard/ProjectsPageClient.tsx
 'use client';
 
@@ -72,7 +71,8 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { useDictionary } from '@/context/LanguageContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { getDictionary } from '@/lib/translations';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Project, WorkflowHistoryEntry, FileEntry, UpdateProjectParams } from '@/types/project-types';
@@ -96,6 +96,11 @@ import {
 } from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
 import { id as IndonesianLocale, enUS as EnglishLocale } from 'date-fns/locale';
+import { addFilesToProject as addFilesToProjectService } from '@/services/project-service';
+import { API_BASE_URL } from '@/config/api-config';
+
+
+const defaultGlobalDict = getDictionary('en');
 
 const projectStatuses = [
     'Pending Offer', 'Pending Approval', 'Pending DP Invoice',
@@ -132,32 +137,25 @@ interface UploadDialogState {
   division: string | null;
 }
 
-function ProjectsPageSkeleton() {
-    return (
-        <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
-            <Card className="shadow-md animate-pulse">
-                <CardHeader className="p-4 sm:p-6"><Skeleton className="h-7 w-3/5 mb-2" /><Skeleton className="h-4 w-4/5" /></CardHeader>
-                <CardContent className="p-4 sm:p-6 pt-0">
-                    <div className="flex justify-end mb-4"><Skeleton className="h-10 w-32" /></div>
-                    <div className="space-y-4">{[...Array(3)].map((_, i) => (<Card key={`project-skel-${i}`} className="opacity-50 border-muted/50"><CardHeader className="flex flex-col sm:flex-row items-start justify-between space-y-2 sm:space-y-0 pb-2 p-4 sm:p-6"><div><Skeleton className="h-5 w-3/5 mb-1" /><Skeleton className="h-3 w-4/5" /></div><div className="flex-shrink-0 mt-2 sm:mt-0"><Skeleton className="h-5 w-20 rounded-full" /></div></CardHeader><CardContent className="p-4 sm:p-6 pt-0"><div className="flex items-center gap-2"><Skeleton className="flex-1 h-2" /><Skeleton className="h-3 w-1/4" /></div></CardContent></Card>))}</div>
-                </CardContent>
-            </Card>
-        </div>
-    );
+interface ProjectsPageClientProps {
+    initialProjects: Project[];
 }
 
-export default function ProjectsPageClient() {
+export default function ProjectsPageClient({ initialProjects }: ProjectsPageClientProps) {
   const { toast } = useToast();
-  const dict = useDictionary();
-  const { language } = dict; // Assuming language is part of the dictionary context now
-  const { projectsPage: projectsDict, dashboardPage: dashboardDict, settingsPage: settingsDict } = dict;
-
+  const { language } = useLanguage();
   const { currentUser } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [allProjects, setAllProjects] = React.useState<Project[]>([]);
+  const dict = React.useMemo(() => getDictionary(language), [language]);
+  const projectsDict = React.useMemo(() => dict.projectsPage, [dict]);
+  const dashboardDict = React.useMemo(() => dict.dashboardPage, [dict]);
+  const settingsDict = React.useMemo(() => dict.settingsPage, [dict]);
+
+
+  const [allProjects, setAllProjects] = React.useState<Project[]>(initialProjects);
+  const [isLoadingProjects, setIsLoadingProjects] = React.useState(false);
   const [selectedProject, setSelectedProject] = React.useState<Project | null>(null);
 
   const [description, setDescription] = React.useState('');
@@ -210,12 +208,16 @@ export default function ProjectsPageClient() {
   
   const [uploadDialogState, setUploadDialogState] = React.useState<UploadDialogState>({ isOpen: false, item: null, division: null });
 
+  const [isClient, setIsClient] = React.useState(false);
+  React.useEffect(() => { setIsClient(true); }, []);
+
+
   const projectIdFromUrl = searchParams.get('projectId');
 
   const fetchAllProjects = React.useCallback(async () => {
-    setIsLoading(true);
+    setIsLoadingProjects(true);
     try {
-        const response = await fetch(`/api/projects`);
+        const response = await fetch(`${API_BASE_URL}/api/projects`);
         if (!response.ok) {
             throw new Error('Failed to fetch projects');
         }
@@ -225,13 +227,9 @@ export default function ProjectsPageClient() {
         console.error("Failed to fetch projects:", error);
         toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.couldNotLoadProjects });
     } finally {
-        setIsLoading(false);
+        setIsLoadingProjects(false);
     }
   }, [toast, projectsDict.toast.error, projectsDict.toast.couldNotLoadProjects]);
-
-  React.useEffect(() => {
-    fetchAllProjects();
-  }, [fetchAllProjects]);
 
   React.useEffect(() => {
     const handleDataRefresh = () => {
@@ -248,7 +246,7 @@ export default function ProjectsPageClient() {
 
   const fetchProjectById = React.useCallback(async (id: string): Promise<Project | null> => {
     try {
-      const response = await fetch(`/api/projects/${id}`);
+      const response = await fetch(`${API_BASE_URL}/api/projects/${id}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch project ${id}`);
       }
@@ -326,16 +324,23 @@ export default function ProjectsPageClient() {
         (Object.keys(requiredChecklists) as (keyof ParallelUploadChecklist)[]).forEach(division => {
             const checklistItems = requiredChecklists[division];
             if (checklistItems) {
-                currentStatus[division] = checklistItems.map(item => {
-                    // Check if there's a file explicitly associated with this item
-                    const associatedFile = projectFiles.find(file => file.path.includes(`/${file.name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_`));
+                const divisionFiles = projectFiles.filter(file => file.uploadedBy === division);
 
+                currentStatus[division] = checklistItems.map(item => {
+                    const itemNameKeywords = item.name.toLowerCase().split(' ').filter(k => k);
+                    const uploadedFile = divisionFiles.find(file => {
+                        const fileNameLower = file.name.toLowerCase();
+                        // This logic becomes a fallback or can be adjusted.
+                        // The primary association will be through the explicit upload action.
+                        // For now, we check if the file name CONTAINS keywords.
+                        return itemNameKeywords.every(keyword => fileNameLower.includes(keyword));
+                    });
                     return {
                         ...item,
-                        uploaded: !!associatedFile,
-                        filePath: associatedFile?.path,
-                        uploadedBy: associatedFile?.uploadedBy,
-                        originalFileName: associatedFile?.name,
+                        uploaded: !!uploadedFile,
+                        filePath: uploadedFile?.path,
+                        uploadedBy: uploadedFile?.uploadedBy,
+                        originalFileName: uploadedFile?.name,
                     };
                 });
             }
@@ -505,25 +510,26 @@ export default function ProjectsPageClient() {
     return currentUser.roles[0];
   }, [currentUser, selectedProject]);
 
-  const uploadFileWithStreaming = async (file: File, queryParams: Record<string, string | null>): Promise<any> => {
-      const queryString = new URLSearchParams(
-        Object.entries(queryParams).filter(([, value]) => value !== null) as [string, string][]
-      ).toString();
+  const uploadFileWithFormData = async (file: File, formDataPayload: Record<string, string | null>): Promise<any> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      for (const key in formDataPayload) {
+          if (formDataPayload[key] !== null) {
+              formData.append(key, formDataPayload[key]!);
+          }
+      }
 
-      const response = await fetch(`/api/upload/stream?${queryString}`, {
+      const response = await fetch(`${API_BASE_URL}/api/upload-file`, {
           method: 'POST',
-          body: file,
-          headers: { 'Content-Type': 'application/octet-stream' },
-          cache: 'no-store',
+          body: formData,
       });
-      
+
       if (!response.ok) {
           const errorData = await response.json().catch(() => ({ message: `Server error: ${response.statusText}` }));
           throw new Error(errorData.message || `Failed to upload ${file.name}.`);
       }
       return response.json();
   };
-
 
   const handleProgressSubmit = React.useCallback(async (actionTaken: string = 'submitted', filesToSubmit?: File[], descriptionForSubmit?: string, associatedChecklistItem?: string, divisionForFile?: string) => {
     if (!currentUser || !Array.isArray(currentUser.roles) || !selectedProject) {
@@ -537,13 +543,16 @@ export default function ProjectsPageClient() {
     const isDecisionOrTerminalAction = ['approved', 'rejected', 'completed', 'revise_offer', 'revise_dp', 'canceled_after_sidang', 'revision_completed_proceed_to_invoice', 'all_files_confirmed', 'reschedule_sidang'].includes(actionTaken);
     const isSchedulingAction = actionTaken === 'scheduled' || actionTaken === 'reschedule_survey' || actionTaken === 'reschedule_survey_from_parallel';
     const isSurveySchedulingAction = selectedProject.status === 'Pending Survey Details' && actionTaken === 'submitted';
+    const isArchitectInitialImageUpload = actionTaken === 'architect_uploaded_initial_images_for_struktur';
     
     setIsSubmitting(true);
+    if (isArchitectInitialImageUpload) setIsSubmittingInitialImages(true);
+
     let newlyUpdatedProject: Project | null = null;
     let hadError = false;
 
     try {
-        if (!isDecisionOrTerminalAction && !isSchedulingAction && !isSurveySchedulingAction && !currentDescription && currentFiles.length === 0 ) {
+        if (!isDecisionOrTerminalAction && !isSchedulingAction && !isSurveySchedulingAction && !isArchitectInitialImageUpload && !currentDescription && currentFiles.length === 0 ) {
           toast({ variant: 'destructive', title: projectsDict.toast.missingInput, description: projectsDict.toast.provideDescOrFile });
           hadError = true;
           return;
@@ -554,33 +563,34 @@ export default function ProjectsPageClient() {
             return;
         }
 
+        // New Logic: Upload files one by one using FormData
         if (currentFiles.length > 0) {
             for (const file of currentFiles) {
-                const queryParams = {
-                  filename: file.name,
+                const formDataPayload: Record<string, string | null> = {
                   projectId: selectedProject.id,
                   userId: currentUser.id,
                   uploaderRole: divisionForFile || actingRole || currentUser.roles[0],
-                  note: currentDescription,
+                  note: currentDescription, // The note is associated with each file upload
                   associatedChecklistItem: associatedChecklistItem || null,
                 };
                 try {
-                  await uploadFileWithStreaming(file, queryParams);
+                  await uploadFileWithFormData(file, formDataPayload);
                 } catch (error: any) {
                     console.error("Error uploading file:", file.name, error);
                     toast({ variant: 'destructive', title: projectsDict.toast.uploadError, description: error.message });
                     hadError = true;
-                    return; 
+                    return; // Stop on first upload error
                 }
             }
         }
         
+        // After all files are uploaded (or if no files), submit the final workflow update
         const updatePayload: UpdateProjectParams = {
             projectId: selectedProject.id,
             updaterRoles: currentUser.roles,
             updaterUsername: currentUser.username,
             actionTaken: actionTaken,
-            note: currentFiles.length > 0 ? undefined : (currentDescription || undefined),
+            note: currentFiles.length > 0 ? undefined : (currentDescription || undefined), // Only send note if no files were part of this action
             scheduleDetails: (selectedProject.status === 'Pending Scheduling' && actionTaken === 'scheduled' && scheduleDate) ? {
                 date: format(scheduleDate, 'yyyy-MM-dd'),
                 time: scheduleTime,
@@ -593,7 +603,7 @@ export default function ProjectsPageClient() {
             } : undefined,
         };
 
-        const response = await fetch(`/api/projects/update`, {
+        const response = await fetch(`${API_BASE_URL}/api/projects/update`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updatePayload),
@@ -606,12 +616,19 @@ export default function ProjectsPageClient() {
         
         toast({ title: projectsDict.toast.progressSubmitted, description: "Project has been updated successfully." });
 
+        // Reset form states
         setDescription('');
         setUploadedFiles([]);
         if (actionTaken.includes('revise')) { setRevisionNote(''); }
+        if (isArchitectInitialImageUpload) {
+            setInitialImageFiles([]);
+            setInitialImageDescription('');
+            setIsInitialImageUploadDialogOpen(false);
+        }
         if (uploadDialogState.isOpen) {
           setUploadDialogState({ isOpen: false, item: null, division: null });
         }
+
 
       } catch (error: any) {
          console.error("Error updating project:", error);
@@ -619,6 +636,7 @@ export default function ProjectsPageClient() {
             toast({ variant: 'destructive', title: projectsDict.toast.updateError, description: error.message || projectsDict.toast.failedToSubmitProgress });
          }
       } finally {
+        // This block runs regardless of success or failure
         if (selectedProject) {
             newlyUpdatedProject = await fetchProjectById(selectedProject.id);
             if (newlyUpdatedProject) {
@@ -627,6 +645,7 @@ export default function ProjectsPageClient() {
             }
         }
         setIsSubmitting(false);
+        if (isArchitectInitialImageUpload) setIsSubmittingInitialImages(false);
       }
   }, [currentUser, selectedProject, uploadedFiles, description, scheduleDate, scheduleTime, scheduleLocation, surveyDate, surveyTime, surveyDescription, projectsDict, toast, actingRole, uploadDialogState.isOpen, rescheduleDate, rescheduleTime, fetchProjectById]);
 
@@ -638,15 +657,14 @@ export default function ProjectsPageClient() {
     setIsUploadingAdminFiles(true);
     try {
         for (const file of adminFiles) {
-            const queryParams = {
-              filename: file.name,
+            const formDataPayload = {
               projectId: selectedProject.id,
               userId: currentUser.id,
               uploaderRole: currentUser.roles[0],
               note: adminFileNote,
               associatedChecklistItem: null,
             };
-            await uploadFileWithStreaming(file, queryParams);
+            await uploadFileWithFormData(file, formDataPayload);
         }
         
         const newlyUpdatedProject = await fetchProjectById(selectedProject.id);
@@ -831,7 +849,7 @@ export default function ProjectsPageClient() {
 
       try {
         setIsAddingToCalendar(true);
-        const response = await fetch(`/api/calendar/create-event`, {
+        const response = await fetch(`${API_BASE_URL}/api/calendar/create-event`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: currentUser.id, eventDetails }),
@@ -911,7 +929,7 @@ export default function ProjectsPageClient() {
    const handleDownloadFile = React.useCallback(async (file: FileEntry) => {
         setIsDownloading(true);
         try {
-            const response = await fetch(`/api/download-file?filePath=${encodeURIComponent(file.path)}`);
+            const response = await fetch(`${API_BASE_URL}/api/download-file?filePath=${encodeURIComponent(file.path)}`);
             if (!response.ok) {
                 let errorDetails = `Failed to download ${file.name}. Status: ${response.status}`;
                 let responseText = "";
@@ -953,7 +971,7 @@ export default function ProjectsPageClient() {
 
         setIsDeletingFile(filePath);
         try {
-            const response = await fetch(`/api/delete-file`, {
+            const response = await fetch(`${API_BASE_URL}/api/delete-file`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1008,7 +1026,7 @@ export default function ProjectsPageClient() {
       setIsGenericRevisionDialogOpen(false);
 
       try {
-        const response = await fetch(`/api/projects/update`, {
+        const response = await fetch(`${API_BASE_URL}/api/projects/update`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1170,7 +1188,7 @@ export default function ProjectsPageClient() {
         if (!selectedProject || !currentUser || !Array.isArray(currentUser.roles)) return;
         setIsSubmitting(true);
         try {
-            const response = await fetch(`/api/projects/update`, {
+            const response = await fetch(`${API_BASE_URL}/api/projects/update`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1203,7 +1221,7 @@ export default function ProjectsPageClient() {
         if (!selectedProject || !currentUser) return;
         setIsSubmitting(true);
         try {
-            const response = await fetch(`/api/notify-division`, {
+            const response = await fetch(`${API_BASE_URL}/api/notify-division`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1313,28 +1331,29 @@ export default function ProjectsPageClient() {
     }, [selectedProject]);
 
     const finalDocsChecklistStatus = React.useMemo(() => {
-        if (!selectedProject || selectedProject.status !== 'Pending Final Documents') return null;
+        if (selectedProject?.status !== 'Pending Final Documents') return null;
         const projectFiles = selectedProject.files || [];
+        
+        const hasGeneralFinalDoc = projectFiles.some(file => 
+            file.uploadedBy === 'Admin Proyek' && 
+            file.name.toLowerCase().includes('dokumen_final')
+        );
 
         return finalDocRequirements.map(reqName => {
             const reqKeywords = reqName.toLowerCase().split(' ').filter(k => k);
             
-            // Check for files associated via checklistItem name
-            const associatedFile = projectFiles.find(file => 
-              file.path.includes(`/${file.name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}_`)
-            );
-            
-            if (associatedFile) {
-              return {
-                name: reqName,
-                uploaded: true,
-                filePath: associatedFile.path,
-                originalFileName: associatedFile.name,
-                uploadedBy: associatedFile.uploadedBy
-              };
+            // Special handling for the first item "Dokumen Final"
+            if (reqName === 'Dokumen Final' && hasGeneralFinalDoc) {
+                const uploadedFile = projectFiles.find(file => file.name.toLowerCase().includes('dokumen_final'));
+                return {
+                    name: reqName,
+                    uploaded: true,
+                    filePath: uploadedFile?.path,
+                    originalFileName: uploadedFile?.name,
+                    uploadedBy: uploadedFile?.uploadedBy
+                };
             }
 
-            // Fallback to keyword matching for older data
             const uploadedFile = projectFiles.find(file => {
                 const fileNameLower = file.name.toLowerCase();
                 const allKeywordsMatch = reqKeywords.every(keyword => fileNameLower.includes(keyword));
@@ -1368,8 +1387,18 @@ export default function ProjectsPageClient() {
       return selectedProject.status === 'Pending Final Documents' && canTakeAction;
     }, [selectedProject, currentUser]);
 
-  if (isLoading) {
-    return <ProjectsPageSkeleton />;
+  if (!isClient) {
+    return (
+        <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
+            <Card className="shadow-md animate-pulse">
+                <CardHeader className="p-4 sm:p-6"><Skeleton className="h-7 w-3/5 mb-2" /><Skeleton className="h-4 w-4/5" /></CardHeader>
+                <CardContent className="p-4 sm:p-6 pt-0">
+                    <div className="flex justify-end mb-4"><Skeleton className="h-10 w-32" /></div>
+                    <div className="space-y-4">{[...Array(3)].map((_, i) => (<Card key={`project-skel-${i}`} className="opacity-50 border-muted/50"><CardHeader className="flex flex-col sm:flex-row items-start justify-between space-y-2 sm:space-y-0 pb-2 p-4 sm:p-6"><div><Skeleton className="h-5 w-3/5 mb-1" /><Skeleton className="h-3 w-4/5" /></div><div className="flex-shrink-0 mt-2 sm:mt-0"><Skeleton className="h-5 w-20 rounded-full" /></div></CardHeader><CardContent className="p-4 sm:p-6 pt-0"><div className="flex items-center gap-2"><Skeleton className="flex-1 h-2" /><Skeleton className="h-3 w-1/4" /></div></CardContent></Card>))}</div>
+                </CardContent>
+            </Card>
+        </div>
+    );
   }
 
   const renderProjectList = () => {
@@ -1408,7 +1437,7 @@ export default function ProjectsPageClient() {
         </CardHeader>
         <CardContent className="p-4 sm:p-6 pt-0">
           <div className="space-y-4">
-            {isLoading && displayedProjects.length === 0 ? (
+            {isLoadingProjects && displayedProjects.length === 0 ? (
                 [...Array(3)].map((_, i) => (
                     <Card key={`project-list-skel-${i}`} className="opacity-50 border-muted/50 animate-pulse">
                         <CardHeader className="flex flex-col sm:flex-row items-start justify-between space-y-2 sm:space-y-0 pb-2 p-4 sm:p-6">
@@ -1774,6 +1803,60 @@ export default function ProjectsPageClient() {
                     </CardContent>
                 </Card>
                   
+                  {showArchitectInitialImageUploadSection && (
+                    <Card className="mb-6 shadow-md">
+                        <CardHeader className="p-4 sm:p-6">
+                            <CardTitle>{projectsDict.architectUploadInitialImagesTitle}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 sm:p-6 pt-0">
+                            <Dialog open={isInitialImageUploadDialogOpen} onOpenChange={setIsInitialImageUploadDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline" className="w-full sm:w-auto">
+                                        <Upload className="mr-2 h-4 w-4" /> {projectsDict.architectUploadInitialImagesButton}
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-md">
+                                    <DialogHeader>
+                                        <DialogTitle>{projectsDict.architectUploadInitialImagesDialogTitle}</DialogTitle>
+                                        <DialogDescription>{projectsDict.architectUploadInitialImagesDialogDesc}</DialogDescription>
+                                    </DialogHeader>
+                                    <div className="space-y-4 py-2">
+                                        <div className="grid w-full items-center gap-1.5">
+                                            <Label htmlFor="initial-image-description">{projectsDict.descriptionLabel} ({projectsDict.optionalNoteLabel})</Label>
+                                            <Textarea id="initial-image-description" placeholder={projectsDict.revisionFilesDescriptionPlaceholder} value={initialImageDescription} onChange={(e) => setInitialImageDescription(e.target.value)} disabled={isSubmittingInitialImages}/>
+                                        </div>
+                                        <div className="grid w-full items-center gap-1.5">
+                                            <Label htmlFor="initial-image-files">{projectsDict.attachFilesLabel}</Label>
+                                            <Input id="initial-image-files" type="file" multiple onChange={handleInitialImageFileChange} disabled={isSubmittingInitialImages}/>
+                                        </div>
+                                        {initialImageFiles.length > 0 && (
+                                            <div className="space-y-2 rounded-md border p-3">
+                                                <Label>{projectsDict.selectedFilesLabel} ({initialImageFiles.length})</Label>
+                                                <ul className="list-disc list-inside text-sm space-y-1 max-h-32 overflow-y-auto">
+                                                {initialImageFiles.map((file, index) => ( <li key={`initial-img-${index}`} className="flex items-center justify-between group"><span className="truncate max-w-[calc(100%-4rem)] sm:max-w-xs text-muted-foreground group-hover:text-foreground">{file.name} <span className="text-xs">({(file.size / 1024).toFixed(1)} KB)</span></span><Button variant="ghost" size="sm" type="button" onClick={() => removeInitialImageFile(index)} disabled={isSubmittingInitialImages} className="opacity-50 group-hover:opacity-100 flex-shrink-0"><Trash2 className="h-4 w-4 text-destructive" /></Button></li>))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <DialogFooter className="pt-2 sm:justify-between">
+                                        <Button type="button" variant="outline" onClick={() => setIsInitialImageUploadDialogOpen(false)} disabled={isSubmittingInitialImages}>{projectsDict.cancelButton}</Button>
+                                        <Button
+                                            type="button"
+                                            onClick={() => handleProgressSubmit('architect_uploaded_initial_images_for_struktur', initialImageFiles, initialImageDescription)}
+                                            disabled={isSubmittingInitialImages}
+                                            className="accent-teal"
+                                        >
+                                            {isSubmittingInitialImages ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                                            {isSubmittingInitialImages ? projectsDict.submittingButton : projectsDict.submitButton}
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                        </CardContent>
+                    </Card>
+                  )}
+
+
                 <Card className="shadow-md">
                     <CardHeader className="p-4 sm:p-6">
                         <CardTitle>{projectsDict.currentProjectActionsTitle || "Current Project Actions"}</CardTitle>

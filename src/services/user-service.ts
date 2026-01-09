@@ -3,12 +3,16 @@
 
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import type { User, AddUserData, UpdateProfileData, UpdatePasswordData, UpdateUserGoogleTokensData } from '@/types/user-types';
-import { readDb, writeDb } from '@/lib/database-utils';
+import type { User, AddUserData, UpdateProfileData, UpdatePasswordData, UpdateUserGoogleTokensData } from '../types/user-types';
+import { readDb, writeDb } from '../lib/database-utils';
 
-const DB_BASE_PATH = process.env.DATABASE_PATH || '/app/data';
+// KOMENTAR SEMENTARA:
+// Variabel `DATABASE_PATH` ini diambil dari `docker-compose.yml` (environment: - DATABASE_PATH=/app/data).
+// Sehingga, path ini akan menunjuk ke `/app/data/database/users.json` di dalam container,
+// yang terhubung langsung ke `msarch-data/database/users.json` di NAS Anda.
+const DB_BASE_PATH = process.env.DATABASE_PATH || path.resolve(process.cwd());
 const DB_PATH_USERS = path.join(DB_BASE_PATH, 'database', 'users.json');
-const AVATAR_UPLOAD_DIR = path.join(DB_BASE_PATH, 'uploads', 'avatars');
+const AVATAR_UPLOAD_DIR = path.join(DB_BASE_PATH, 'database', 'uploads', 'avatars');
 
 
 async function getAllUsers(): Promise<User[]> {
@@ -18,11 +22,7 @@ async function getAllUsers(): Promise<User[]> {
 export async function findUserByUsername(username: string): Promise<User | null> {
     if (!username) return null;
     const users = await getAllUsers();
-    const normalizedUsername = username.toLowerCase();
-    const user = users.find(u => 
-        u.username.toLowerCase() === normalizedUsername || 
-        (u.displayName && u.displayName.toLowerCase() === normalizedUsername)
-    );
+    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     return user || null;
 }
 
@@ -78,7 +78,7 @@ export async function addUser(userData: AddUserData): Promise<Omit<User, 'passwo
     const newUser: User = {
         id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         username: userData.username,
-        password: userData.password,
+        password: userData.password, // Store plain text password
         roles: userData.roles,
         email: userData.email || `${userData.username.toLowerCase().replace(/\s+/g, '_')}@example.com`,
         displayName: userData.displayName || userData.username,

@@ -13,24 +13,28 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
-import { useLanguage, useDictionary } from '@/context/LanguageContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { getDictionary } from '@/lib/translations';
 import { Loader2, Upload, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DEFAULT_WORKFLOW_ID } from '@/config/workflow-constants';
+import { API_BASE_URL } from '@/config/api-config';
 
-const getAddProjectSchema = (dictValidation: ReturnType<typeof useDictionary>['addProjectPage']['validation']) => z.object({
+const getAddProjectSchema = (dictValidation: ReturnType<typeof getDictionary>['addProjectPage']['validation']) => z.object({
   title: z.string().min(5, dictValidation.titleMin),
 });
+
+const defaultDict = getDictionary('en');
 
 export default function AddProjectPageClient() {
   const { currentUser } = useAuth();
   const { language } = useLanguage();
-  const dict = useDictionary();
   const { toast } = useToast();
   const router = useRouter();
   const [isClient, setIsClient] = React.useState(false);
   
-  const { addProjectPage: addProjectDict, dashboardPage: dashboardDict } = dict;
+  const addProjectDict = React.useMemo(() => getDictionary(language).addProjectPage, [language]);
+  const dashboardDict = React.useMemo(() => getDictionary(language).dashboardPage, [language]);
 
   const [isLoading, setIsLoading] = React.useState(false);
   const [selectedFiles, setSelectedFiles] = React.useState<File[]>([]);
@@ -92,7 +96,7 @@ export default function AddProjectPageClient() {
       formData.append('userId', currentUser.id);
       selectedFiles.forEach(file => formData.append('files', file));
 
-      const response = await fetch('/api/projects', {
+      const response = await fetch(`${API_BASE_URL}/api/projects`, {
         method: 'POST',
         body: formData,
       });
@@ -107,7 +111,7 @@ export default function AddProjectPageClient() {
 
       toast({
         title: addProjectDict.toast.success,
-        description: (addProjectDict.toast.successDesc)
+        description: (addProjectDict.toast.successDesc || defaultDict.addProjectPage.toast.successDesc)
           .replace('{title}', `"${newProject.title}"`) 
           .replace('{division}', translatedDivision),
       });
@@ -153,10 +157,10 @@ export default function AddProjectPageClient() {
           <div className="container mx-auto py-4 px-4 md:px-6">
            <Card className="border-destructive">
              <CardHeader>
-               <CardTitle className="text-destructive">{addProjectDict.accessDeniedTitle}</CardTitle>
+               <CardTitle className="text-destructive">{addProjectDict.accessDeniedTitle || defaultDict.manageUsersPage.accessDeniedTitle}</CardTitle>
              </CardHeader>
              <CardContent>
-               <p>{addProjectDict.accessDenied}</p>
+               <p>{addProjectDict.accessDenied || defaultDict.manageUsersPage.accessDeniedDesc}</p>
              </CardContent>
            </Card>
          </div>
@@ -204,7 +208,7 @@ export default function AddProjectPageClient() {
 
                  {selectedFiles.length > 0 && (
                    <div className="space-y-2 rounded-md border p-3">
-                     <Label>{(addProjectDict.selectedFilesLabel)} ({selectedFiles.length})</Label>
+                     <Label>{(addProjectDict.selectedFilesLabel || defaultDict.addProjectPage.selectedFilesLabel)} ({selectedFiles.length})</Label>
                      <ul className="list-disc list-inside text-sm space-y-1 max-h-32 overflow-y-auto">
                        {selectedFiles.map((file, index) => (
                          <li key={index} className="flex items-center justify-between group">
@@ -229,7 +233,7 @@ export default function AddProjectPageClient() {
 
                <div className="flex flex-col sm:flex-row justify-end gap-2">
                   <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading} className="w-full sm:w-auto">
-                    {addProjectDict.cancelButton}
+                    {addProjectDict.cancelButton || defaultDict.manageUsersPage.cancelButton}
                  </Button>
                   <Button type="submit" className="accent-teal w-full sm:w-auto" disabled={isLoading}>
                     {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

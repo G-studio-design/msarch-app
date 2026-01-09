@@ -1,4 +1,3 @@
-
 // src/components/dashboard/UsersPageClient.tsx
 'use client';
 
@@ -61,51 +60,42 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useDictionary } from '@/context/LanguageContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { getDictionary } from '@/lib/translations';
 import type { User as UserType } from '@/types/user-types';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 
-const divisions = ['Owner', 'Akuntan', 'Admin Proyek', 'Arsitek', 'Struktur', 'MEP'];
 
-const getAddUserSchema = (dictValidation: ReturnType<typeof useDictionary>['manageUsersPage']['validation']) => z.object({
+const divisions = ['Owner', 'Akuntan', 'Admin Proyek', 'Arsitek', 'Struktur', 'MEP'];
+const defaultGlobalDict = getDictionary('en');
+
+const getAddUserSchema = (dictValidation: ReturnType<typeof getDictionary>['manageUsersPage']['validation']) => z.object({
     username: z.string().min(3, dictValidation.usernameMin),
     password: z.string().min(6, dictValidation.passwordMin),
     roles: z.array(z.string()).min(1, dictValidation.roleRequired),
 });
 
-const getEditUserSchema = (dictValidation: ReturnType<typeof useDictionary>['manageUsersPage']['validation']) => z.object({
+const getEditUserSchema = (dictValidation: ReturnType<typeof getDictionary>['manageUsersPage']['validation']) => z.object({
     username: z.string().min(3, dictValidation.usernameMin),
     roles: z.array(z.string()).min(1, dictValidation.roleRequired),
 });
 
-function PageSkeleton() {
-    return (
-        <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
-           <Card>
-               <CardHeader>
-                   <Skeleton className="h-7 w-1/3 mb-2" />
-                   <Skeleton className="h-4 w-2/3" />
-               </CardHeader>
-               <CardContent>
-                   <Skeleton className="h-40 w-full" />
-               </CardContent>
-           </Card>
-       </div>
-   );
+interface UsersPageClientProps {
+    initialUsers: Omit<UserType, 'password'>[];
 }
 
-
-export default function UsersPageClient() {
+export default function UsersPageClient({ initialUsers }: UsersPageClientProps) {
   const { toast } = useToast();
-  const dict = useDictionary();
-  const { manageUsersPage: usersDict } = dict;
-
+  const { language } = useLanguage();
   const { currentUser } = useAuth();
   
-  const [users, setUsers] = React.useState<UserType[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const dict = React.useMemo(() => getDictionary(language), [language]);
+  const usersDict = React.useMemo(() => dict.manageUsersPage, [dict]);
+
+  const [users, setUsers] = React.useState<UserType[]>(initialUsers as UserType[]);
+  const [isLoading, setIsLoading] = React.useState(false);
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = React.useState(false);
   const [isEditUserDialogOpen, setIsEditUserDialogOpen] = React.useState(false);
@@ -115,11 +105,9 @@ export default function UsersPageClient() {
     setIsLoading(true);
     try {
       const response = await fetch('/api/users');
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
+      if (!response.ok) throw new Error('Failed to fetch users');
       const fetchedUsers = await response.json();
-      setUsers(fetchedUsers as UserType[]);
+      setUsers(fetchedUsers);
     } catch (error) {
       console.error("Failed to fetch users:", error);
       toast({ variant: 'destructive', title: usersDict.toast.error, description: usersDict.toast.fetchError });
@@ -127,10 +115,6 @@ export default function UsersPageClient() {
       setIsLoading(false);
     }
   }, [toast, usersDict.toast]);
-
-  React.useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
 
   const addUserSchema = React.useMemo(() => getAddUserSchema(usersDict.validation), [usersDict.validation]);
   const editUserSchema = React.useMemo(() => getEditUserSchema(usersDict.validation), [usersDict.validation]);
@@ -235,7 +219,11 @@ export default function UsersPageClient() {
     if (!roles || roles.length === 0) return 'Not Assigned';
     
     if (!usersDict?.roles) {
-      return roles.join(', ');
+      const fallbackDict = defaultGlobalDict.manageUsersPage.roles as Record<string, string>;
+      return roles.map(role => {
+        const key = role?.trim().replace(/\s+/g, '').toLowerCase() || "";
+        return fallbackDict[key] || role;
+      }).join(', ');
     }
 
     return roles.map(role => {
@@ -243,7 +231,7 @@ export default function UsersPageClient() {
         const normalizedKey = role.trim().replace(/\s+/g, '').toLowerCase() as keyof typeof usersDict.roles;
         return usersDict.roles[normalizedKey] || role;
     }).join(', ');
-  }, [usersDict]);
+  }, [usersDict, defaultGlobalDict]);
 
   const getRoleIcon = (role: string) => {
       if (!role) return <User className="h-4 w-4 text-muted-foreground" />;
@@ -263,10 +251,6 @@ export default function UsersPageClient() {
     setEditingUser(user);
     setIsEditUserDialogOpen(true);
   };
-  
-  if (isLoading) {
-    return <PageSkeleton />;
-  }
 
   if (!canManageUsers) {
     return (

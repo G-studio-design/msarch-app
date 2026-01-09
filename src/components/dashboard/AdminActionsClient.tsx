@@ -1,4 +1,3 @@
-
 // src/components/dashboard/AdminActionsClient.tsx
 'use client';
 
@@ -41,7 +40,8 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Edit, Save, XCircle, Loader2, Replace, Trash2, BellOff, MapPin } from 'lucide-react';
-import { useDictionary } from '@/context/LanguageContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { getDictionary } from '@/lib/translations';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Project } from '@/types/project-types';
@@ -49,6 +49,8 @@ import type { WorkflowStep } from '@/types/workflow-types';
 import type { AppSettings, AttendanceSettings } from '@/services/settings-service';
 import { cn } from '@/lib/utils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
+const defaultGlobalDict = getDictionary('en');
 
 const statusWorkflowDetailsMap: Record<string, Partial<WorkflowStep>> = {
   'Pending Offer': { assignedDivision: 'Admin Proyek', nextActionDescription: 'Unggah Dokumen Penawaran', progress: 10 },
@@ -70,18 +72,39 @@ const statusWorkflowDetailsMap: Record<string, Partial<WorkflowStep>> = {
 
 type DayOfWeek = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
 
-export default function AdminActionsClient() {
+interface AdminActionsClientProps {
+  initialData: {
+    projects: Project[];
+    availableStatuses: string[];
+    appSettings: AppSettings;
+  }
+}
+
+export default function AdminActionsClient({ initialData }: AdminActionsClientProps) {
   const { toast } = useToast();
-  const dict = useDictionary();
-  const { adminActionsPage: adminDict, dashboardPage: dashboardDict, manageUsersPage: manageUsersDict } = dict;
+  const { language } = useLanguage();
   const { currentUser } = useAuth();
   
-  const [projects, setProjects] = React.useState<Project[]>([]);
-  const [availableStatuses, setAvailableStatuses] = React.useState<string[]>([]);
-  const [attendanceFeatureEnabled, setAttendanceFeatureEnabled] = React.useState(false);
-  const [attendanceSettings, setAttendanceSettings] = React.useState<AttendanceSettings | null>(null);
+  const [isClient, setIsClient] = React.useState(false);
+  React.useEffect(() => { setIsClient(true) }, []);
 
-  const [isLoading, setIsLoading] = React.useState(true);
+  const dict = React.useMemo(() => getDictionary(language), [language]);
+  const adminDict = React.useMemo(() => dict.adminActionsPage, [dict]);
+  const dashboardDict = React.useMemo(() => dict.dashboardPage, [dict]);
+  const manageUsersDict = React.useMemo(() => dict.manageUsersPage, [dict]);
+
+
+  const [projects, setProjects] = React.useState<Project[]>(initialData.projects);
+  const [availableStatuses, setAvailableStatuses] = React.useState<string[]>(initialData.availableStatuses);
+  const [attendanceFeatureEnabled, setAttendanceFeatureEnabled] = React.useState(initialData.appSettings.feature_attendance_enabled);
+  const [attendanceSettings, setAttendanceSettings] = React.useState<AttendanceSettings | null>({
+      office_latitude: initialData.appSettings.office_latitude || 0,
+      office_longitude: initialData.appSettings.office_longitude || 0,
+      attendance_radius_meters: initialData.appSettings.attendance_radius_meters || 100,
+      workingHours: initialData.appSettings.workingHours
+  });
+
+  const [isLoadingProjects, setIsLoadingProjects] = React.useState(false); // For refetching
   const [editingProjectId, setEditingProjectId] = React.useState<string | null>(null);
   const [newTitle, setNewTitle] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
@@ -105,7 +128,7 @@ export default function AdminActionsClient() {
 
    const fetchData = React.useCallback(async () => {
         if (currentUser && Array.isArray(currentUser.roles) && currentUser.roles.some(r => ['Owner', 'Akuntan', 'Admin Proyek', 'Admin Developer'].includes(r))) {
-            setIsLoading(true);
+            setIsLoadingProjects(true);
             try {
                 const [projectsRes, statusesRes, settingsRes] = await Promise.all([
                    fetch('/api/projects'),
@@ -136,16 +159,12 @@ export default function AdminActionsClient() {
                 console.error("Failed to fetch data for admin actions:", error);
                 toast({ variant: 'destructive', title: adminDict.toast.error, description: adminDict.toast.fetchError });
             } finally {
-                setIsLoading(false);
+                setIsLoadingProjects(false);
             }
         } else {
-           setIsLoading(false);
+           setIsLoadingProjects(false);
         }
    }, [currentUser, toast, adminDict]);
-
-   React.useEffect(() => {
-     fetchData();
-   },[fetchData]);
 
 
   const handleEditClick = (projectId: string, currentTitle: string) => {
@@ -259,11 +278,13 @@ export default function AdminActionsClient() {
 
    const getTranslatedRole = React.useCallback((roleKey: string) => {
     if (!manageUsersDict?.roles || !roleKey) {
-      return roleKey;
+      const fallbackDict = defaultGlobalDict.manageUsersPage.roles as Record<string, string>;
+      const key = roleKey?.trim().replace(/\s+/g, '').toLowerCase() || "";
+      return fallbackDict[key] || roleKey;
     }
     const normalizedKey = roleKey?.trim().replace(/\s+/g, '').toLowerCase() as keyof typeof manageUsersDict.roles;
     return manageUsersDict.roles[normalizedKey] || roleKey;
-  }, [manageUsersDict]);
+  }, [manageUsersDict, defaultGlobalDict]);
 
 
    const canPerformAdminActions = currentUser && Array.isArray(currentUser.roles) && currentUser.roles.some(r => ['Owner', 'Akuntan', 'Admin Proyek', 'Admin Developer'].includes(r));
@@ -431,7 +452,7 @@ export default function AdminActionsClient() {
   const showAttendanceSettingsCard = currentUser && Array.isArray(currentUser.roles) && currentUser.roles.some(r => ['Owner', 'Admin Developer'].includes(r));
 
 
-  if (isLoading) {
+  if (!isClient) {
     return (
         <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
            <Card>
@@ -505,7 +526,7 @@ export default function AdminActionsClient() {
             </div>
         </CardHeader>
         <CardContent>
-            {isLoading ? (
+            {isLoadingProjects ? (
                 <Skeleton className="h-40 w-full" />
             ) : (
             <>
@@ -603,7 +624,7 @@ export default function AdminActionsClient() {
             </div>
             {/* Mobile View */}
             <div className="grid gap-4 md:hidden">
-                {projects.length === 0 && !isLoading ? (
+                {projects.length === 0 && !isLoadingProjects ? (
                     <div className="text-center text-muted-foreground py-8">
                         {adminDict.noProjects}
                     </div>

@@ -1,8 +1,21 @@
-// src/app/dashboard/users/page.tsx
+
 import React, { Suspense } from 'react';
+import { getAllUsersForDisplay } from '@/services/user-service';
 import UsersPageClient from '@/components/dashboard/UsersPageClient';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+
+export const dynamic = 'force-dynamic';
+
+export default async function ManageUsersPage() {
+  const users = await getAllUsersForDisplay();
+
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <UsersPageClient initialUsers={users} />
+    </Suspense>
+  );
+}
 
 function PageSkeleton() {
     return (
@@ -18,12 +31,4 @@ function PageSkeleton() {
            </Card>
        </div>
    );
-}
-
-export default function ManageUsersPage() {
-  return (
-    <Suspense fallback={<PageSkeleton />}>
-      <UsersPageClient />
-    </Suspense>
-  );
 }

@@ -6,7 +6,7 @@ import * as path from 'path';
 import { deleteProjectFile as deleteFileRecordService, getProjectById } from '@/services/project-service';
 import { findUserById } from '@/services/user-service';
 
-const DB_BASE_PATH = process.env.DATABASE_PATH || '/app/data';
+const DB_BASE_PATH = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'database');
 const PROJECT_FILES_BASE_DIR = path.join(DB_BASE_PATH, 'project_files');
 
 export async function POST(request: Request) {

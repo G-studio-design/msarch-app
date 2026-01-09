@@ -1,4 +1,3 @@
-
 // src/components/dashboard/WorkflowsPageClient.tsx
 'use client';
 
@@ -54,31 +53,42 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, Edit, Trash2, Loader2, GitFork, Settings2, ChevronUpCircle, ChevronDownCircle } from 'lucide-react';
-import { useDictionary } from '@/context/LanguageContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { getDictionary } from '@/lib/translations';
 import { useAuth } from '@/context/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Workflow, WorkflowStep } from '@/types/workflow-types';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-const getAddWorkflowSchema = (dictValidation: ReturnType<typeof useDictionary>['manageWorkflowsPage']['validation']) => z.object({
+const defaultDict = getDictionary('en');
+
+const getAddWorkflowSchema = (dictValidation: ReturnType<typeof getDictionary>['manageWorkflowsPage']['validation']) => z.object({
   name: z.string().min(3, dictValidation.nameMin),
   description: z.string().optional(),
 });
 
-const getEditWorkflowSchema = (dictValidation: ReturnType<typeof useDictionary>['manageWorkflowsPage']['validation']) => z.object({
+const getEditWorkflowSchema = (dictValidation: ReturnType<typeof getDictionary>['manageWorkflowsPage']['validation']) => z.object({
   name: z.string().min(3, dictValidation.nameMin),
   description: z.string().optional(),
 });
 
-export default function WorkflowsPageClient() {
+interface WorkflowsPageClientProps {
+    initialWorkflows: Workflow[];
+}
+
+export default function WorkflowsPageClient({ initialWorkflows }: WorkflowsPageClientProps) {
   const { toast } = useToast();
-  const dict = useDictionary();
-  const { manageWorkflowsPage: workflowsDict, manageUsersPage: manageUsersDict } = dict;
+  const { language } = useLanguage();
   const { currentUser } = useAuth();
 
-  const [workflows, setWorkflows] = React.useState<Workflow[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const [dict, setDict] = React.useState(defaultDict);
+  const [workflowsDict, setWorkflowsDict] = React.useState(defaultDict.manageWorkflowsPage);
+  const [manageUsersDict, setManageUsersDict] = React.useState(defaultDict.manageUsersPage);
+
+
+  const [workflows, setWorkflows] = React.useState<Workflow[]>(initialWorkflows);
+  const [isLoading, setIsLoading] = React.useState(false); // For refetches
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [isAddWorkflowDialogOpen, setIsAddWorkflowDialogOpen] = React.useState(false);
   const [isEditWorkflowDialogOpen, setIsEditWorkflowDialogOpen] = React.useState(false);
@@ -88,29 +98,11 @@ export default function WorkflowsPageClient() {
   const [stepsOrderChanged, setStepsOrderChanged] = React.useState(false);
   const [activeAccordionItem, setActiveAccordionItem] = React.useState<string | undefined>(undefined);
 
-  const fetchWorkflowsData = React.useCallback(async () => {
-      setIsLoading(true);
-      try {
-        const response = await fetch('/api/workflows');
-        if (!response.ok) throw new Error('Failed to fetch workflows.');
-        const fetchedWorkflows = await response.json();
-        setWorkflows(fetchedWorkflows);
-      } catch (error) {
-        console.error("Failed to fetch workflows:", error);
-        toast({ variant: 'destructive', title: workflowsDict.toast.error, description: workflowsDict.toast.fetchError });
-      } finally {
-        setIsLoading(false);
-      }
-  }, [toast, workflowsDict]);
 
-  React.useEffect(() => {
-    fetchWorkflowsData();
-  },[fetchWorkflowsData]);
-
-  const addWorkflowSchema = React.useMemo(() => getAddWorkflowSchema(workflowsDict.validation), [workflowsDict.validation]);
+  const addWorkflowSchema = getAddWorkflowSchema(workflowsDict.validation);
   type AddWorkflowFormValues = z.infer<typeof addWorkflowSchema>;
 
-  const editWorkflowSchema = React.useMemo(() => getEditWorkflowSchema(workflowsDict.validation), [workflowsDict.validation]);
+  const editWorkflowSchema = getEditWorkflowSchema(workflowsDict.validation);
   type EditWorkflowFormValues = z.infer<typeof editWorkflowSchema>;
 
   const addWorkflowForm = useForm<AddWorkflowFormValues>({
@@ -131,8 +123,39 @@ export default function WorkflowsPageClient() {
     context: { dict: workflowsDict.validation }
   });
 
-  const canManage = currentUser && currentUser.roles.includes('Admin Developer');
+  React.useEffect(() => {
+    const newDict = getDictionary(language);
+    setDict(newDict);
+    setWorkflowsDict(newDict.manageWorkflowsPage);
+    setManageUsersDict(newDict.manageUsersPage);
+  }, [language]);
   
+  React.useEffect(() => {
+    addWorkflowForm.trigger();
+  }, [workflowsDict, addWorkflowForm]);
+
+  const canManage = currentUser && currentUser.roles.includes('Admin Developer');
+
+  const fetchWorkflowsData = React.useCallback(async () => {
+    if (!canManage) {
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/workflows');
+      if (!response.ok) throw new Error('Failed to fetch workflows.');
+      const fetchedWorkflows = await response.json();
+      setWorkflows(fetchedWorkflows);
+    } catch (error) {
+      console.error("Failed to fetch workflows:", error);
+      toast({ variant: 'destructive', title: workflowsDict.toast.error, description: workflowsDict.toast.fetchError });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [canManage, toast, workflowsDict]);
+
+
   const handleOpenAddWorkflowDialog = () => {
     addWorkflowForm.reset({ name: '', description: '' });
     setIsAddWorkflowDialogOpen(true);
@@ -174,6 +197,12 @@ export default function WorkflowsPageClient() {
     setIsEditWorkflowDialogOpen(true);
   };
   
+  React.useEffect(() => {
+    if (editingWorkflow) {
+      editWorkflowForm.trigger();
+    }
+  }, [editingWorkflow, editWorkflowForm, workflowsDict]);
+
   const onSubmitEditWorkflow = async (data: EditWorkflowFormValues) => {
     if (!canManage || !editingWorkflow) return;
     setIsProcessing(true);
@@ -268,23 +297,12 @@ export default function WorkflowsPageClient() {
 
   const isEditFormDirty = editWorkflowForm.formState.isDirty || stepsOrderChanged;
 
-  if (isLoading) {
-    return (
-        <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
-            <Card>
-            <CardHeader><Skeleton className="h-7 w-1/3 mb-2" /><Skeleton className="h-4 w-2/3" /></CardHeader>
-            <CardContent><Skeleton className="h-40 w-full" /></CardContent>
-            </Card>
-        </div>
-    );
-  }
-
   if (!canManage) {
     return (
       <div className="container mx-auto py-4 px-4 md:px-6">
         <Card className="border-destructive">
-          <CardHeader><CardTitle className="text-destructive">{workflowsDict.accessDeniedTitle}</CardTitle></CardHeader>
-          <CardContent><p>{workflowsDict.accessDeniedDesc}</p></CardContent>
+          <CardHeader><CardTitle className="text-destructive">{workflowsDict.accessDeniedTitle || dict.manageUsersPage.accessDeniedTitle}</CardTitle></CardHeader>
+          <CardContent><p>{workflowsDict.accessDeniedDesc || dict.manageUsersPage.accessDeniedDesc}</p></CardContent>
         </Card>
       </div>
     );

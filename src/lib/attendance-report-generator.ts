@@ -1,9 +1,10 @@
+
 // src/lib/attendance-report-generator.ts
 'use server';
 
 import {
   Document, Packer, Paragraph, TextRun, Table, TableCell, TableRow,
-  WidthType, BorderStyle, VerticalAlign, AlignmentType, ShadingType, Header, Footer, PageNumber
+  WidthType, BorderStyle, VerticalAlign, AlignmentType, ShadingType, Header, Footer, PageNumber, SectionType
 } from 'docx';
 import type { AttendanceRecord } from '@/services/attendance-service';
 import type { User } from '@/types/user-types';

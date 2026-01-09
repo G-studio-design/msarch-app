@@ -1,5 +1,6 @@
 
 import React, { Suspense } from 'react';
+import { isAttendanceFeatureEnabled } from '@/services/settings-service';
 import AttendanceReportClient from '@/components/dashboard/AttendanceReportClient';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,11 +9,12 @@ import { Card, CardContent } from '@/components/ui/card';
 export const dynamic = 'force-dynamic';
 
 export default async function AttendanceReportPage() {
-    // Data fetching logic is moved to the client component.
-    // Server just renders the shell.
+
+    const attendanceEnabled = await isAttendanceFeatureEnabled();
+    
     return (
         <Suspense fallback={<PageSkeleton />}>
-            <AttendanceReportClient />
+            <AttendanceReportClient attendanceEnabled={attendanceEnabled} />
         </Suspense>
     );
 }

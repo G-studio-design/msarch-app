@@ -7,7 +7,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { sanitizeForPath } from '@/lib/path-utils';
 
-const DB_BASE_PATH = process.env.DATABASE_PATH || '/app/data';
+const DB_BASE_PATH = process.env.DATABASE_PATH || path.resolve(process.cwd(), 'database');
 const PROJECT_FILES_BASE_DIR = path.join(DB_BASE_PATH, 'project_files');
 
 

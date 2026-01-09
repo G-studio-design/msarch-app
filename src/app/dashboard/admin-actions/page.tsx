@@ -1,8 +1,33 @@
-// src/app/dashboard/admin-actions/page.tsx
+
 import React, { Suspense } from 'react';
+import { getAllProjects } from '@/services/project-service';
+import { getAllUniqueStatuses } from '@/services/workflow-service';
+import { getAppSettings } from '@/services/settings-service';
 import AdminActionsClient from '@/components/dashboard/AdminActionsClient';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+
+export const dynamic = 'force-dynamic';
+
+export default async function AdminActionsPage() {
+    const [fetchedProjects, statuses, settings] = await Promise.all([
+       getAllProjects(),
+       getAllUniqueStatuses(),
+       getAppSettings()
+    ]);
+
+    const initialData = {
+        projects: fetchedProjects,
+        availableStatuses: statuses,
+        appSettings: settings
+    };
+
+    return (
+        <Suspense fallback={<PageSkeleton />}>
+            <AdminActionsClient initialData={initialData} />
+        </Suspense>
+    );
+}
 
 function PageSkeleton() {
     return (
@@ -18,13 +43,4 @@ function PageSkeleton() {
            </Card>
        </div>
    );
-}
-
-
-export default function AdminActionsPage() {
-  return (
-    <Suspense fallback={<PageSkeleton />}>
-      <AdminActionsClient />
-    </Suspense>
-  );
 }

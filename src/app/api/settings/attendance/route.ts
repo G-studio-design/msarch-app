@@ -1,7 +1,6 @@
 // src/app/api/settings/attendance/route.ts
 import { NextResponse } from 'next/server';
-import { updateAttendanceSettings } from '@/services/settings-service';
-import type { AttendanceSettings } from '@/services/settings-service';
+import { updateAttendanceSettings, type AttendanceSettings } from '@/services/settings-service';
 
 export async function POST(request: Request) {
     try {

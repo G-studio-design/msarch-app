@@ -4,70 +4,42 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-// In-memory cache to reduce disk I/O on the NAS
-const cache = new Map<string, { data: any; mtime: number }>();
-const CACHE_ENABLED = process.env.NODE_ENV === 'production'; // Only cache in production
-
-async function getFileMtime(filePath: string): Promise<number> {
-    try {
-        const stats = await fs.stat(filePath);
-        return stats.mtime.getTime();
-    } catch (error: any) {
-        if (error.code === 'ENOENT') {
-            return 0; // File doesn't exist, no modification time
-        }
-        throw error;
-    }
-}
-
 /**
- * Safely reads a JSON database file, using an in-memory cache in production
- * to reduce disk I/O on the NAS.
+ * Safely reads a JSON database file, ensuring it always gets the latest version from disk.
+ * This function is designed for a server environment where data files can be updated.
  * @param dbPath The absolute path to the database file.
  * @param defaultData The default data to return if the file doesn't exist or is empty.
  * @returns A promise that resolves to the parsed data or the default data.
  */
 export async function readDb<T>(dbPath: string, defaultData: T): Promise<T> {
-    if (CACHE_ENABLED) {
-        const fileMtime = await getFileMtime(dbPath);
-        const cached = cache.get(dbPath);
-
-        if (cached && cached.mtime === fileMtime) {
-            // Return from cache if modification time is the same
-            return cached.data as T;
-        }
-    }
-
     try {
+        // ALWAYS read the file from disk, do not use any in-memory cache.
         const data = await fs.readFile(dbPath, 'utf8');
         
+        // If file is empty, it's invalid JSON. Return default data.
         if (data.trim() === "") {
-            console.warn(`[DB Read] DB file at ${path.basename(dbPath)} was empty. Using default data.`);
+            console.warn(`[DB Read] DB file at ${path.basename(dbPath)} was empty. Returning default data.`);
             return defaultData;
         }
 
-        const parsedData = JSON.parse(data) as T;
-
-        if (CACHE_ENABLED) {
-            const fileMtime = await getFileMtime(dbPath); // Re-check mtime after read
-            cache.set(dbPath, { data: parsedData, mtime: fileMtime });
-        }
-
-        return parsedData;
+        return JSON.parse(data) as T;
 
     } catch (error: any) {
+        // If file does not exist, return default data but DO NOT create it.
         if (error.code === 'ENOENT') {
-            console.warn(`[DB Read] DB file at ${path.basename(dbPath)} not found. Using default data. The file will be created on next write.`);
+            console.error(`[DB Read] CRITICAL: DB file at ${dbPath} not found. Returning default data. Make sure the file exists.`);
             return defaultData;
         }
         
-        console.error(`[DB Read] Error reading or parsing ${path.basename(dbPath)}: ${error.message}. Using default data as a fallback.`);
+        // For any other error (e.g., malformed JSON), log it and return default.
+        // This prevents a crash if the file becomes corrupted.
+        console.error(`[DB Read] Error reading or parsing ${path.basename(dbPath)}: ${error.message}. Returning default data as a fallback.`);
         return defaultData;
     }
 }
 
 /**
- * Writes data to a JSON database file and invalidates the cache for that file.
+ * Writes data to a JSON database file, creating the directory if it doesn't exist.
  * @param dbPath The absolute path to the database file.
  * @param data The data to write to the file.
  */
@@ -75,45 +47,18 @@ export async function writeDb<T>(dbPath: string, data: T): Promise<void> {
     try {
         const dbDir = path.dirname(dbPath);
         await fs.mkdir(dbDir, { recursive: true });
-        
+        // Use a temporary file and rename for atomic write
         const tempFilePath = dbPath + '.tmp';
         await fs.writeFile(tempFilePath, JSON.stringify(data, null, 2), 'utf8');
         await fs.rename(tempFilePath, dbPath);
-
-        // Invalidate cache on write
-        if (CACHE_ENABLED) {
-            cache.delete(dbPath);
-        }
-
     } catch (error: any) {
         console.error(`[DB Write] CRITICAL: Failed to write to DB file at ${path.basename(dbPath)}. Error: ${error.message}`);
+        // If there was a temp file, try to clean it up
         try {
             await fs.unlink(dbPath + '.tmp');
         } catch (cleanupError) {
-            // Ignore cleanup error, the original error is more important
+            // Ignore cleanup error
         }
-        throw error;
-    }
-}
-
-/**
- * Invalidates the cache for a specific database file.
- * Useful if the file is modified by an external process.
- * @param dbPath The absolute path to the database file to invalidate.
- */
-export async function invalidateCache(dbPath: string): Promise<void> {
-    if (CACHE_ENABLED) {
-        cache.delete(dbPath);
-        console.log(`[Cache] Invalidated cache for ${path.basename(dbPath)}`);
-    }
-}
-
-/**
- * Clears the entire in-memory database cache.
- */
-export async function clearAllCache(): Promise<void> {
-    if (CACHE_ENABLED) {
-        cache.clear();
-        console.log("[Cache] All in-memory caches cleared.");
+        throw error; // Re-throw the original error
     }
 }

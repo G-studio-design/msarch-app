@@ -1,9 +1,21 @@
-// src/app/dashboard/admin-actions/workflows/page.tsx
+
 import React, { Suspense } from 'react';
+import { getAllWorkflows } from '@/services/workflow-service';
 import WorkflowsPageClient from '@/components/dashboard/WorkflowsPageClient';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
+export const dynamic = 'force-dynamic';
+
+export default async function ManageWorkflowsPage() {
+  const workflows = await getAllWorkflows();
+
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <WorkflowsPageClient initialWorkflows={workflows} />
+    </Suspense>
+  );
+}
 
 function PageSkeleton() {
     return (
@@ -14,12 +26,4 @@ function PageSkeleton() {
             </Card>
         </div>
     );
-}
-
-export default function ManageWorkflowsPage() {
-  return (
-    <Suspense fallback={<PageSkeleton />}>
-        <WorkflowsPageClient />
-    </Suspense>
-  );
 }
