@@ -319,6 +319,33 @@
         "division": "Admin Proyek, MEP",
         "action": "komangmerta (Admin Proyek, MEP) submitted for \"Unggah dokumen penyelesaian proyek: Berita Acara, SKRD, Ijin Terbit, Susunan Dokumen Final, Tanda Terima.\"",
         "timestamp": "2025-12-19T01:58:00.796Z"
+      },
+      {
+        "division": "usr_1747799008584_4r22a",
+        "action": "Uploaded additional file(s): KORI NUANSA GATSU - BLOCK PLAN SEPTEMBER 2023.pdf",
+        "timestamp": "2026-01-09T04:38:15.867Z",
+        "note": "File administrasi tambahan diunggah oleh usr_1747799008584_4r22a. Catatan: dokumen final"
+      },
+      {
+        "division": "Admin Proyek, MEP",
+        "action": "komangmerta (Admin Proyek, MEP) submitted for \"Unggah dokumen penyelesaian proyek: Berita Acara, SKRD, Ijin Terbit, Susunan Dokumen Final, Tanda Terima.\"",
+        "timestamp": "2026-01-09T04:38:16.949Z"
+      },
+      {
+        "division": "usr_1747799008584_4r22a",
+        "action": "Uploaded additional file(s): dokumen final .pdf",
+        "timestamp": "2026-01-09T04:39:03.624Z",
+        "note": "File administrasi tambahan diunggah oleh usr_1747799008584_4r22a. Catatan: File uploaded: dokumen final .pdf"
+      },
+      {
+        "division": "Admin Proyek, MEP",
+        "action": "komangmerta (Admin Proyek, MEP) submitted for \"Unggah dokumen penyelesaian proyek: Berita Acara, SKRD, Ijin Terbit, Susunan Dokumen Final, Tanda Terima.\"",
+        "timestamp": "2026-01-09T04:39:03.746Z"
+      },
+      {
+        "division": "komangmerta",
+        "action": "Deleted file: \"dokumen final .pdf\"",
+        "timestamp": "2026-01-09T04:40:12.150Z"
       }
     ],
     "files": [
@@ -345,6 +372,12 @@
         "path": "project_11_pending_final_docs/dokumen_final_kori_nuansa_gatsu_-_block_plan_september_2023.pdf",
         "uploadedBy": "Admin Proyek",
         "timestamp": "2025-12-19T01:57:59.898Z"
+      },
+      {
+        "name": "KORI NUANSA GATSU - BLOCK PLAN SEPTEMBER 2023.pdf",
+        "path": "project_11_pending_final_docs/dokumen_final_kori_nuansa_gatsu_-_block_plan_september_2023.pdf",
+        "uploadedBy": "Admin Proyek",
+        "timestamp": "2026-01-09T04:38:15.867Z"
       }
     ],
     "createdAt": "2025-10-11T11:00:00.000Z",

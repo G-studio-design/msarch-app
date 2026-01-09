@@ -1333,44 +1333,20 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     const finalDocsChecklistStatus = React.useMemo(() => {
         if (selectedProject?.status !== 'Pending Final Documents') return null;
         const projectFiles = selectedProject.files || [];
-        
-        const hasGeneralFinalDoc = projectFiles.some(file => 
-            file.uploadedBy === 'Admin Proyek' && 
-            file.name.toLowerCase().includes('dokumen_final')
-        );
 
         return finalDocRequirements.map(reqName => {
-            const reqKeywords = reqName.toLowerCase().split(' ').filter(k => k);
-            
-            // Special handling for the first item "Dokumen Final"
-            if (reqName === 'Dokumen Final' && hasGeneralFinalDoc) {
-                const uploadedFile = projectFiles.find(file => file.name.toLowerCase().includes('dokumen_final'));
-                return {
-                    name: reqName,
-                    uploaded: true,
-                    filePath: uploadedFile?.path,
-                    originalFileName: uploadedFile?.name,
-                    uploadedBy: uploadedFile?.uploadedBy
-                };
-            }
-
+            // Find a file that was specifically uploaded for this checklist item
             const uploadedFile = projectFiles.find(file => {
-                const fileNameLower = file.name.toLowerCase();
-                const allKeywordsMatch = reqKeywords.every(keyword => fileNameLower.includes(keyword));
-                
-                if (reqName === 'Bukti Pembayaran' || reqName === 'Pelunasan') {
-                    return allKeywordsMatch && (file.uploadedBy === 'Owner' || file.uploadedBy === 'Akuntan' || file.uploadedBy === 'Admin Proyek');
-                }
-                
-                return allKeywordsMatch && file.uploadedBy === 'Admin Proyek';
+                const historyEntry = selectedProject.workflowHistory.find(h => h.timestamp === file.timestamp && h.action.includes(file.name));
+                return historyEntry?.note?.includes(`checklist_item:${reqName}`);
             });
 
-            return { 
-                name: reqName, 
-                uploaded: !!uploadedFile, 
-                filePath: uploadedFile?.path, 
-                originalFileName: uploadedFile?.name, 
-                uploadedBy: uploadedFile?.uploadedBy 
+            return {
+                name: reqName,
+                uploaded: !!uploadedFile,
+                filePath: uploadedFile?.path,
+                originalFileName: uploadedFile?.name,
+                uploadedBy: uploadedFile?.uploadedBy,
             };
         });
     }, [selectedProject]);
@@ -2243,7 +2219,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setUploadDialogState({ isOpen: false, item: null, division: null })} disabled={isSubmitting}>Batal</Button>
-                            <Button onClick={() => handleProgressSubmit('submitted', uploadedFiles, description, uploadDialogState.item?.name, uploadDialogState.division || undefined)} disabled={isSubmitting || uploadedFiles.length === 0}>
+                            <Button onClick={() => handleProgressSubmit('submitted', uploadedFiles, `checklist_item:${uploadDialogState.item?.name}|${description}`, uploadDialogState.item?.name, uploadDialogState.division || undefined)} disabled={isSubmitting || uploadedFiles.length === 0}>
                                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Unggah
                             </Button>
                         </DialogFooter>

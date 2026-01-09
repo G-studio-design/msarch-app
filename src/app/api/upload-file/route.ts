@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     const projectId = formData.get('projectId') as string | null;
     const userId = formData.get('userId') as string | null;
     const uploaderRole = formData.get('uploaderRole') as string | null;
-    const note = formData.get('note') as string | null;
+    const note = formData.get('note') as string | null; // This now includes checklist item info
     const associatedChecklistItem = formData.get('associatedChecklistItem') as string | null;
 
     if (!file || !projectId || !userId || !uploaderRole) {
@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       uploadedBy: uploaderRole,
     };
     
+    // The note from the client now contains the checklist item identifier
     await addFilesToProject(projectId, [fileEntry], userId, note || `File uploaded: ${file.name}`);
 
     return NextResponse.json({
