@@ -18,7 +18,11 @@ async function getAllUsers(): Promise<User[]> {
 export async function findUserByUsername(username: string): Promise<User | null> {
     if (!username) return null;
     const users = await getAllUsers();
-    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+    const normalizedUsername = username.toLowerCase();
+    const user = users.find(u => 
+        u.username.toLowerCase() === normalizedUsername || 
+        (u.displayName && u.displayName.toLowerCase() === normalizedUsername)
+    );
     return user || null;
 }
 
