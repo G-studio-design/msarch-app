@@ -48,6 +48,7 @@ Metode ini adalah cara paling modern dan aman untuk mempublikasikan aplikasi And
     - Buka **File Station** di NAS Anda.
     - Di bawah folder `docker`, buat folder baru bernama `msarch-app`.
     - **Pindahkan semua file dan folder proyek Anda** (`Dockerfile`, `package.json`, `src`, dll.) ke dalam folder `/docker/msarch-app/`.
+    - **PENTING:** Pastikan folder `msarch-data` (yang berisi folder `database`, `uploads`, dll.) ada di dalam direktori proyek `/docker/msarch-app/`. Folder ini akan dibuat secara otomatis saat kontainer pertama kali berjalan, tetapi jika Anda memulihkan dari cadangan, tempatkan di sini.
 
 2.  **Buat dan Isi File `.env`:**
     - Di dalam folder `/docker/msarch-app`, buat file baru bernama `.env`.
