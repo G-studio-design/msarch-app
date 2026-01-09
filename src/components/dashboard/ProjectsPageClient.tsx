@@ -503,26 +503,58 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     return currentUser.roles[0];
   }, [currentUser, selectedProject]);
 
-  const uploadFileWithFormData = async (file: File, formDataPayload: Record<string, string | null>): Promise<any> => {
-      const formData = new FormData();
-      formData.append('file', file);
-      for (const key in formDataPayload) {
-          if (formDataPayload[key] !== null) {
-              formData.append(key, formDataPayload[key]!);
-          }
-      }
+  const uploadFileWithFormData = async (file: File, formDataPayload: Record<string, string | null>, onProgress: (percentage: number) => void): Promise<any> => {
+    const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    const uploadId = `${file.name}-${file.lastModified}-${file.size}`;
 
-      const response = await fetch(`${API_BASE_URL}/api/upload-file`, {
-          method: 'POST',
-          body: formData,
-      });
+    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        const start = chunkIndex * CHUNK_SIZE;
+        const end = start + CHUNK_SIZE;
+        const chunk = file.slice(start, end);
+        
+        const chunkFormData = new FormData();
+        chunkFormData.append('chunk', chunk);
+        chunkFormData.append('chunkIndex', chunkIndex.toString());
+        chunkFormData.append('totalChunks', totalChunks.toString());
+        chunkFormData.append('originalFilename', file.name);
+        chunkFormData.append('uploadId', uploadId);
 
-      if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: `Server error: ${response.statusText}` }));
-          throw new Error(errorData.message || `Failed to upload ${file.name}.`);
-      }
-      return response.json();
-  };
+        const response = await fetch(`${API_BASE_URL}/api/upload/stream`, {
+            method: 'POST',
+            body: chunkFormData,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Server error during chunk upload.' }));
+            throw new Error(errorData.message || `Failed to upload chunk ${chunkIndex}.`);
+        }
+
+        const progress = Math.round(((chunkIndex + 1) / totalChunks) * 100);
+        onProgress(progress);
+        
+        if (chunkIndex === totalChunks - 1) {
+            // Last chunk response contains the final temp path
+            const lastChunkResponse = await response.json();
+            // Now, make the final API call to move the file and add it to the project
+            const finalResponse = await fetch(`${API_BASE_URL}/api/upload-file`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...formDataPayload,
+                    tempPath: lastChunkResponse.tempPath,
+                    originalFilename: lastChunkResponse.originalFilename,
+                }),
+            });
+
+            if (!finalResponse.ok) {
+                const finalErrorData = await finalResponse.json().catch(() => ({ message: 'Server error during file finalization.' }));
+                throw new Error(finalErrorData.message || 'Failed to finalize file upload.');
+            }
+            return finalResponse.json();
+        }
+    }
+};
 
   const handleProgressSubmit = React.useCallback(async (actionTaken: string = 'submitted', filesToSubmit?: File[], descriptionForSubmit?: string, associatedChecklistItem?: string, divisionForFile?: string) => {
     if (!currentUser || !Array.isArray(currentUser.roles) || !selectedProject) {
@@ -567,7 +599,10 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                   associatedChecklistItem: associatedChecklistItem || null,
                 };
                 try {
-                  await uploadFileWithFormData(file, formDataPayload);
+                  await uploadFileWithFormData(file, formDataPayload, (progress) => {
+                      // Here you can update a progress state if you want a visual indicator
+                      console.log(`Upload progress for ${file.name}: ${progress}%`);
+                  });
                 } catch (error: any) {
                     console.error("Error uploading file:", file.name, error);
                     toast({ variant: 'destructive', title: projectsDict.toast.uploadError, description: error.message });
@@ -650,14 +685,15 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     setIsUploadingAdminFiles(true);
     try {
         for (const file of adminFiles) {
-            const formDataPayload = {
+            await uploadFileWithFormData(file, {
               projectId: selectedProject.id,
               userId: currentUser.id,
               uploaderRole: currentUser.roles[0],
               note: adminFileNote,
               associatedChecklistItem: null,
-            };
-            await uploadFileWithFormData(file, formDataPayload);
+            }, (progress) => {
+                console.log(`Admin file upload progress for ${file.name}: ${progress}%`);
+            });
         }
         
         const newlyUpdatedProject = await fetchProjectById(selectedProject.id);
@@ -1537,7 +1573,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
           const isPreviousUploaded = index === 0 || allItems[index - 1].uploaded;
 
           return (
-            <li key={`final-doc-${item.name}`} className="flex items-center text-sm p-2 border rounded-md gap-2 flex-col items-start">
+            <li key={`final-doc-${item.name}`} className="flex text-sm p-2 border rounded-md gap-2 flex-col items-start">
               <div className="flex justify-between items-center w-full">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   {item.uploaded ? <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" /> : <CircleIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
@@ -1557,7 +1593,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                 )}
               </div>
               
-              {item.files && item.files.length > 0 && (
+               {item.files && item.files.length > 0 && (
                 <ul className="pl-6 pt-2 space-y-1 w-full">
                   {item.files.map(file => {
                     const canUploaderDelete = currentUser?.roles.includes(file.uploadedBy || '');
@@ -2238,3 +2274,4 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     </div>
   );
 }
+

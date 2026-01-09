@@ -395,6 +395,44 @@
         "division": "komangmerta",
         "action": "Deleted file: \"dokumen final .pdf\"",
         "timestamp": "2026-01-09T05:35:29.818Z"
+      },
+      {
+        "division": "komangmerta",
+        "action": "Deleted file: \"KORI NUANSA GATSU - BLOCK PLAN SEPTEMBER 2023.pdf\"",
+        "timestamp": "2026-01-09T05:56:52.884Z"
+      },
+      {
+        "division": "usr_1747799008584_4r22a",
+        "action": "Uploaded additional file(s): KORI NUANSA GATSU - BLOCK PLAN warna.pdf",
+        "timestamp": "2026-01-09T05:57:58.753Z",
+        "note": "File administrasi tambahan diunggah oleh usr_1747799008584_4r22a. Catatan: File uploaded for checklist item: \"Dokumen Final\". Original name: KORI NUANSA GATSU - BLOCK PLAN warna.pdf. "
+      },
+      {
+        "division": "Admin Proyek, MEP",
+        "action": "komangmerta (Admin Proyek, MEP) submitted for \"Unggah dokumen penyelesaian proyek: Berita Acara, SKRD, Ijin Terbit, Susunan Dokumen Final, Tanda Terima.\"",
+        "timestamp": "2026-01-09T05:57:59.462Z"
+      },
+      {
+        "division": "komangmerta",
+        "action": "Deleted file: \"KORI NUANSA GATSU - BLOCK PLAN warna.pdf\"",
+        "timestamp": "2026-01-09T05:58:16.296Z"
+      },
+      {
+        "division": "usr_1747799008584_4r22a",
+        "action": "Uploaded additional file(s): KORI NUANSA GATSU - BLOCK PLAN SEPTEMBER 2023.pdf",
+        "timestamp": "2026-01-09T05:58:43.633Z",
+        "note": "File administrasi tambahan diunggah oleh usr_1747799008584_4r22a. Catatan: File uploaded for checklist item: \"Dokumen Final\". Original name: KORI NUANSA GATSU - BLOCK PLAN SEPTEMBER 2023.pdf. "
+      },
+      {
+        "division": "usr_1747799008584_4r22a",
+        "action": "Uploaded additional file(s): KORI NUANSA GATSU - BLOCK PLAN warna.pdf",
+        "timestamp": "2026-01-09T05:58:43.877Z",
+        "note": "File administrasi tambahan diunggah oleh usr_1747799008584_4r22a. Catatan: File uploaded for checklist item: \"Dokumen Final\". Original name: KORI NUANSA GATSU - BLOCK PLAN warna.pdf. "
+      },
+      {
+        "division": "Admin Proyek, MEP",
+        "action": "komangmerta (Admin Proyek, MEP) submitted for \"Unggah dokumen penyelesaian proyek: Berita Acara, SKRD, Ijin Terbit, Susunan Dokumen Final, Tanda Terima.\"",
+        "timestamp": "2026-01-09T05:58:44.041Z"
       }
     ],
     "files": [
@@ -402,13 +440,13 @@
         "name": "KORI NUANSA GATSU - BLOCK PLAN SEPTEMBER 2023.pdf",
         "path": "project_11_pending_final_docs/dokumen_final_kori_nuansa_gatsu_-_block_plan_september_2023.pdf",
         "uploadedBy": "Admin Proyek",
-        "timestamp": "2026-01-09T05:35:11.022Z"
+        "timestamp": "2026-01-09T05:58:43.633Z"
       },
       {
         "name": "KORI NUANSA GATSU - BLOCK PLAN warna.pdf",
         "path": "project_11_pending_final_docs/dokumen_final_kori_nuansa_gatsu_-_block_plan_warna.pdf",
         "uploadedBy": "Admin Proyek",
-        "timestamp": "2026-01-09T05:35:11.320Z"
+        "timestamp": "2026-01-09T05:58:43.877Z"
       }
     ],
     "createdAt": "2025-10-11T11:00:00.000Z",
