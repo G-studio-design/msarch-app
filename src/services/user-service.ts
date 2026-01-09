@@ -74,7 +74,7 @@ export async function addUser(userData: AddUserData): Promise<Omit<User, 'passwo
     const newUser: User = {
         id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         username: userData.username,
-        password: userData.password, // Store plain text password
+        password: userData.password,
         roles: userData.roles,
         email: userData.email || `${userData.username.toLowerCase().replace(/\s+/g, '_')}@example.com`,
         displayName: userData.displayName || userData.username,
