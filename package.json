@@ -4,7 +4,7 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/iwayangovina-cpu/msarch-app.git"
+    "url": "https://github.com/G-studio-design/msarch-app.git"
   },
   "scripts": {
     "dev": "next dev -p 4000 -H 0.0.0.0",
