@@ -357,44 +357,58 @@
         "division": "Admin Proyek, MEP",
         "action": "komangmerta (Admin Proyek, MEP) submitted for \"Unggah dokumen penyelesaian proyek: Berita Acara, SKRD, Ijin Terbit, Susunan Dokumen Final, Tanda Terima.\"",
         "timestamp": "2026-01-09T04:48:49.497Z"
+      },
+      {
+        "division": "sudina",
+        "action": "Deleted file: \"IG - UCAPAN NYEPI 1.jpg\"",
+        "timestamp": "2026-01-09T05:28:34.492Z"
+      },
+      {
+        "division": "sudina",
+        "action": "Deleted file: \"KORI NUANSA GATSU - BLOCK PLAN SEPTEMBER 2023.pdf\"",
+        "timestamp": "2026-01-09T05:28:57.217Z"
+      },
+      {
+        "division": "usr_1747799008584_4r22a",
+        "action": "Uploaded additional file(s): dokumen final .pdf",
+        "timestamp": "2026-01-09T05:35:10.697Z",
+        "note": "File administrasi tambahan diunggah oleh usr_1747799008584_4r22a. Catatan: File uploaded for checklist item: \"Dokumen Final\". Original name: dokumen final .pdf. "
+      },
+      {
+        "division": "usr_1747799008584_4r22a",
+        "action": "Uploaded additional file(s): KORI NUANSA GATSU - BLOCK PLAN SEPTEMBER 2023.pdf",
+        "timestamp": "2026-01-09T05:35:11.022Z",
+        "note": "File administrasi tambahan diunggah oleh usr_1747799008584_4r22a. Catatan: File uploaded for checklist item: \"Dokumen Final\". Original name: KORI NUANSA GATSU - BLOCK PLAN SEPTEMBER 2023.pdf. "
+      },
+      {
+        "division": "usr_1747799008584_4r22a",
+        "action": "Uploaded additional file(s): KORI NUANSA GATSU - BLOCK PLAN warna.pdf",
+        "timestamp": "2026-01-09T05:35:11.320Z",
+        "note": "File administrasi tambahan diunggah oleh usr_1747799008584_4r22a. Catatan: File uploaded for checklist item: \"Dokumen Final\". Original name: KORI NUANSA GATSU - BLOCK PLAN warna.pdf. "
+      },
+      {
+        "division": "Admin Proyek, MEP",
+        "action": "komangmerta (Admin Proyek, MEP) submitted for \"Unggah dokumen penyelesaian proyek: Berita Acara, SKRD, Ijin Terbit, Susunan Dokumen Final, Tanda Terima.\"",
+        "timestamp": "2026-01-09T05:35:12.013Z"
+      },
+      {
+        "division": "komangmerta",
+        "action": "Deleted file: \"dokumen final .pdf\"",
+        "timestamp": "2026-01-09T05:35:29.818Z"
       }
     ],
     "files": [
       {
-        "name": "IG - UCAPAN NYEPI 1.jpg",
-        "path": "project_11_pending_final_docs/dokumen_final_ig_-_ucapan_nyepi_1.jpg",
-        "uploadedBy": "Admin Proyek",
-        "timestamp": "2025-12-18T10:02:29.160Z"
-      },
-      {
-        "name": "IG - UCAPAN NYEPI 1.jpg",
-        "path": "project_11_pending_final_docs/dokumen_final_ig_-_ucapan_nyepi_1.jpg",
-        "uploadedBy": "Admin Proyek",
-        "timestamp": "2025-12-18T10:02:30.221Z"
-      },
-      {
         "name": "KORI NUANSA GATSU - BLOCK PLAN SEPTEMBER 2023.pdf",
         "path": "project_11_pending_final_docs/dokumen_final_kori_nuansa_gatsu_-_block_plan_september_2023.pdf",
         "uploadedBy": "Admin Proyek",
-        "timestamp": "2025-12-19T01:35:56.307Z"
+        "timestamp": "2026-01-09T05:35:11.022Z"
       },
       {
-        "name": "KORI NUANSA GATSU - BLOCK PLAN SEPTEMBER 2023.pdf",
-        "path": "project_11_pending_final_docs/dokumen_final_kori_nuansa_gatsu_-_block_plan_september_2023.pdf",
+        "name": "KORI NUANSA GATSU - BLOCK PLAN warna.pdf",
+        "path": "project_11_pending_final_docs/dokumen_final_kori_nuansa_gatsu_-_block_plan_warna.pdf",
         "uploadedBy": "Admin Proyek",
-        "timestamp": "2025-12-19T01:57:59.898Z"
-      },
-      {
-        "name": "KORI NUANSA GATSU - BLOCK PLAN SEPTEMBER 2023.pdf",
-        "path": "project_11_pending_final_docs/dokumen_final_kori_nuansa_gatsu_-_block_plan_september_2023.pdf",
-        "uploadedBy": "Admin Proyek",
-        "timestamp": "2026-01-09T04:38:15.867Z"
-      },
-      {
-        "name": "KORI NUANSA GATSU - BLOCK PLAN SEPTEMBER 2023.pdf",
-        "path": "project_11_pending_final_docs/dokumen_final_kori_nuansa_gatsu_-_block_plan_september_2023.pdf",
-        "uploadedBy": "Admin Proyek",
-        "timestamp": "2026-01-09T04:48:48.792Z"
+        "timestamp": "2026-01-09T05:35:11.320Z"
       }
     ],
     "createdAt": "2025-10-11T11:00:00.000Z",
