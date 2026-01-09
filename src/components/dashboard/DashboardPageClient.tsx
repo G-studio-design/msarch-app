@@ -139,10 +139,15 @@ function DashboardSkeleton() {
 }
 
 export function DashboardPageClient({ initialData: unusedInitialData }: { initialData: any }) {
-  const { currentUser } = useAuth();
+  const { currentUser, isHydrated: isAuthHydrated } = useAuth();
   const { language } = useLanguage();
   const [data, setData] = useState<Awaited<ReturnType<typeof getDashboardData>> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const dashboardDict = useMemo(() => getDictionary(language).dashboardPage, [language]);
   const projectsDict = useMemo(() => getDictionary(language).projectsPage, [language]);
@@ -150,17 +155,20 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
   
   useEffect(() => {
     async function loadData() {
-      setIsLoading(true);
-      const fetchedData = await getDashboardData();
-      setData(fetchedData);
-      setIsLoading(false);
+      if (isClient) {
+        setIsLoading(true);
+        const fetchedData = await getDashboardData();
+        setData(fetchedData);
+        setIsLoading(false);
+      }
     }
     loadData();
-  }, []);
+  }, [isClient]);
 
   const { projects = [], leaveRequests = [], holidays = [], allUsers = [], todaysAttendance = [], attendanceEnabled = false } = data || {};
 
   const { eventsByDate, upcomingEvents } = useMemo(() => {
+    if (!isClient) return { eventsByDate: {}, upcomingEvents: [] };
     const eventMap: Record<string, UnifiedEvent[]> = {};
     const upcoming: UnifiedEvent[] = [];
     const today = startOfToday();
@@ -214,9 +222,10 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
     upcoming.sort((a,b) => a.date.getTime() - b.date.getTime());
 
     return { eventsByDate: eventMap, upcomingEvents: upcoming };
-  }, [projects, leaveRequests, holidays]);
+  }, [projects, leaveRequests, holidays, isClient]);
 
   const attendanceSummary = useMemo(() => {
+    if (!isClient) return { isHoliday: false, holidayName: null, checkedIn: 0, onLeave: 0, notCheckedIn: 0 };
     const today = new Date();
     const todayHoliday = holidays.find(h => isSameDay(parseISO(h.date), today));
 
@@ -242,7 +251,7 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
       onLeave: onLeaveToday.size,
       notCheckedIn: notCheckedInCount,
     };
-  }, [allUsers, todaysAttendance, leaveRequests, holidays]);
+  }, [allUsers, todaysAttendance, leaveRequests, holidays, isClient]);
 
   const activeProjects = useMemo(() => {
     return projects.filter(p => p.status !== 'Completed' && p.status !== 'Canceled');
@@ -280,7 +289,7 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
   
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
-  if (isLoading || !data) {
+  if (isLoading || !isAuthHydrated || !isClient) {
     return <DashboardSkeleton />;
   }
 
