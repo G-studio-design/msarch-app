@@ -433,6 +433,11 @@
         "division": "Admin Proyek, MEP",
         "action": "komangmerta (Admin Proyek, MEP) submitted for \"Unggah dokumen penyelesaian proyek: Berita Acara, SKRD, Ijin Terbit, Susunan Dokumen Final, Tanda Terima.\"",
         "timestamp": "2026-01-09T05:58:44.041Z"
+      },
+      {
+        "division": "sudina",
+        "action": "Deleted file: \"KORI NUANSA GATSU - BLOCK PLAN warna.pdf\"",
+        "timestamp": "2026-01-09T07:20:40.937Z"
       }
     ],
     "files": [
@@ -441,12 +446,6 @@
         "path": "project_11_pending_final_docs/dokumen_final_kori_nuansa_gatsu_-_block_plan_september_2023.pdf",
         "uploadedBy": "Admin Proyek",
         "timestamp": "2026-01-09T05:58:43.633Z"
-      },
-      {
-        "name": "KORI NUANSA GATSU - BLOCK PLAN warna.pdf",
-        "path": "project_11_pending_final_docs/dokumen_final_kori_nuansa_gatsu_-_block_plan_warna.pdf",
-        "uploadedBy": "Admin Proyek",
-        "timestamp": "2026-01-09T05:58:43.877Z"
       }
     ],
     "createdAt": "2025-10-11T11:00:00.000Z",
