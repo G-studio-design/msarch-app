@@ -99,6 +99,7 @@ import { id as IndonesianLocale, enUS as EnglishLocale } from 'date-fns/locale';
 import { addFilesToProject as addFilesToProjectService } from '@/services/project-service';
 import { API_BASE_URL } from '@/config/api-config';
 import { sanitizeForPath } from '@/lib/path-utils';
+import path from 'path';
 
 
 const defaultGlobalDict = getDictionary('en');
@@ -326,11 +327,10 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             const checklistItems = requiredChecklists[division];
             if (checklistItems) {
                 currentStatus[division] = checklistItems.map(item => {
-                    const sanitizedItemName = sanitizeForPath(item.name).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+                    const sanitizedItemName = sanitizeForPath(item.name).replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
                     const uploadedFile = projectFiles.find(file => {
-                        const fileName = path.basename(file.path);
-                        // Check if file name STARTS WITH the sanitized checklist item name prefix
-                        return fileName.startsWith(`${sanitizedItemName}_`);
+                        const baseName = path.basename(file.path);
+                        return baseName.startsWith(`${sanitizedItemName}_`);
                     });
                     return {
                         ...item,
@@ -1328,17 +1328,15 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     }, [selectedProject]);
 
     const finalDocsChecklistStatus = React.useMemo(() => {
-        if (selectedProject?.status !== 'Pending Final Documents') return null;
+        if (!selectedProject || selectedProject.status !== 'Pending Final Documents') return null;
         const projectFiles = selectedProject.files || [];
 
         return finalDocRequirements.map(reqName => {
-            const sanitizedReqName = sanitizeForPath(reqName).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+            const sanitizedReqName = sanitizeForPath(reqName).replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
             const uploadedFile = projectFiles.find(file => {
-                const fileName = path.basename(file.path);
-                // Check if file name STARTS WITH the sanitized checklist item name prefix
-                return fileName.startsWith(`${sanitizedReqName}_`);
+                const baseName = path.basename(file.path);
+                return baseName.startsWith(`${sanitizedReqName}_`);
             });
-
             return {
                 name: reqName,
                 uploaded: !!uploadedFile,
@@ -2216,7 +2214,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                            )}
                         </div>
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setUploadDialogState({ isOpen: false, item: null, division: null })} disabled={isSubmitting}>Batal</Button>
+                            <Button variant="outline" onClick={() => { setUploadDialogState({ isOpen: false, item: null, division: null }); setUploadedFiles([]); setDescription(''); }} disabled={isSubmitting}>Batal</Button>
                             <Button onClick={() => handleProgressSubmit('submitted', uploadedFiles, description, uploadDialogState.item?.name, uploadDialogState.division || undefined)} disabled={isSubmitting || uploadedFiles.length === 0}>
                                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Unggah
                             </Button>

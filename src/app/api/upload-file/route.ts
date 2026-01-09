@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Missing required form data.' }, { status: 400 });
     }
 
-    const sanitizedItemName = associatedChecklistItem ? sanitizeForPath(associatedChecklistItem).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase() : '';
+    const sanitizedItemName = associatedChecklistItem ? sanitizeForPath(associatedChecklistItem).replace(/[^a-zA-Z0-9_]/g, '').toLowerCase() : '';
     const safeFilenameForPath = `${sanitizedItemName ? `${sanitizedItemName}_` : ''}${sanitizeForPath(file.name) || `unnamed_${Date.now()}`}`;
 
     const projectSpecificDir = path.join(PROJECT_FILES_BASE_DIR, projectId);
@@ -52,14 +52,16 @@ export async function POST(req: NextRequest) {
 
     console.log(`[API/UploadFile] Successfully wrote file to: ${absoluteFilePath}`);
 
+    // The note sent from the client now explicitly states what the upload was for
+    const historyNote = `File uploaded for checklist item: "${associatedChecklistItem || 'General Upload'}". Original name: ${file.name}. ${note ? `Catatan: ${note}`: ''}`;
+    
     const fileEntry = {
       name: file.name,
       path: relativePath,
       uploadedBy: uploaderRole,
     };
     
-    // The note from the client now contains the checklist item identifier
-    await addFilesToProject(projectId, [fileEntry], userId, note || `File uploaded: ${file.name}`);
+    await addFilesToProject(projectId, [fileEntry], userId, historyNote);
 
     return NextResponse.json({
         message: 'File uploaded successfully',
