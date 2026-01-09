@@ -98,6 +98,7 @@ import { format, parseISO } from 'date-fns';
 import { id as IndonesianLocale, enUS as EnglishLocale } from 'date-fns/locale';
 import { addFilesToProject as addFilesToProjectService } from '@/services/project-service';
 import { API_BASE_URL } from '@/config/api-config';
+import { sanitizeForPath } from '@/lib/path-utils';
 
 
 const defaultGlobalDict = getDictionary('en');
@@ -324,16 +325,12 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         (Object.keys(requiredChecklists) as (keyof ParallelUploadChecklist)[]).forEach(division => {
             const checklistItems = requiredChecklists[division];
             if (checklistItems) {
-                const divisionFiles = projectFiles.filter(file => file.uploadedBy === division);
-
                 currentStatus[division] = checklistItems.map(item => {
-                    const itemNameKeywords = item.name.toLowerCase().split(' ').filter(k => k);
-                    const uploadedFile = divisionFiles.find(file => {
-                        const fileNameLower = file.name.toLowerCase();
-                        // This logic becomes a fallback or can be adjusted.
-                        // The primary association will be through the explicit upload action.
-                        // For now, we check if the file name CONTAINS keywords.
-                        return itemNameKeywords.every(keyword => fileNameLower.includes(keyword));
+                    const sanitizedItemName = sanitizeForPath(item.name).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+                    const uploadedFile = projectFiles.find(file => {
+                        const fileName = path.basename(file.path);
+                        // Check if file name STARTS WITH the sanitized checklist item name prefix
+                        return fileName.startsWith(`${sanitizedItemName}_`);
                     });
                     return {
                         ...item,
@@ -1335,10 +1332,11 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         const projectFiles = selectedProject.files || [];
 
         return finalDocRequirements.map(reqName => {
-            // Find a file that was specifically uploaded for this checklist item
+            const sanitizedReqName = sanitizeForPath(reqName).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
             const uploadedFile = projectFiles.find(file => {
-                const historyEntry = selectedProject.workflowHistory.find(h => h.timestamp === file.timestamp && h.action.includes(file.name));
-                return historyEntry?.note?.includes(`checklist_item:${reqName}`);
+                const fileName = path.basename(file.path);
+                // Check if file name STARTS WITH the sanitized checklist item name prefix
+                return fileName.startsWith(`${sanitizedReqName}_`);
             });
 
             return {
@@ -2219,7 +2217,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setUploadDialogState({ isOpen: false, item: null, division: null })} disabled={isSubmitting}>Batal</Button>
-                            <Button onClick={() => handleProgressSubmit('submitted', uploadedFiles, `checklist_item:${uploadDialogState.item?.name}|${description}`, uploadDialogState.item?.name, uploadDialogState.division || undefined)} disabled={isSubmitting || uploadedFiles.length === 0}>
+                            <Button onClick={() => handleProgressSubmit('submitted', uploadedFiles, description, uploadDialogState.item?.name, uploadDialogState.division || undefined)} disabled={isSubmitting || uploadedFiles.length === 0}>
                                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Unggah
                             </Button>
                         </DialogFooter>
