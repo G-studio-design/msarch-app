@@ -21,15 +21,14 @@ services:
     env_file:
       - .env
     environment:
-      # PENTING: Arahkan DATABASE_PATH ke /app/data. 
-      # Semua layanan akan menggunakan path ini sebagai basis.
+      # Mengarahkan path database internal kontainer ke /app/data
       - DATABASE_PATH=/app/data
     volumes:
-      # Map folder data eksternal Anda di NAS ke folder /app/data di dalam kontainer.
+      # Map folder ./msarch-data di NAS ke /app/data di dalam kontainer.
+      # Ini membuat data Anda (database, file proyek) tetap ada meskipun kontainer dihapus.
       - ./msarch-data:/app/data
-      # Map folder unggahan publik (seperti avatar) ke folder public/uploads di dalam kontainer.
-      - ./msarch-data/uploads:/app/public/uploads
-    # Menambahkan layanan 'app' ke jaringan 'msarch-net'
+      # Map folder avatar di NAS ke folder publik di dalam kontainer agar bisa diakses web.
+      - ./msarch-data/uploads/avatars:/app/public/uploads/avatars
     networks:
       - msarch-net
 
