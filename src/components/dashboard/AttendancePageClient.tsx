@@ -41,7 +41,7 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
 
   React.useEffect(() => {
     setIsClient(true);
-    setTodayDate(new Date());
+    setTodayDate(new Date()); // Initialize only on client
   }, []);
 
   const [dict, setDict] = React.useState(defaultDict.attendancePage);
@@ -202,7 +202,6 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
   
   const currentLocale = language === 'id' ? IndonesianLocale : EnglishLocale;
   
-  // These rely on client mount
   const isWorkDayToday = React.useMemo(() => todayDate ? (appSettings?.workingHours[daysOfWeek[todayDate.getDay()]]?.isWorkDay ?? true) : true, [todayDate, appSettings]);
   const isTodayHoliday = React.useMemo(() => todayDate ? holidays.some(h => isSameDay(parseISO(h.date), todayDate)) : false, [todayDate, holidays]);
   const isTodayOnLeave = React.useMemo(() => (todayDate && currentUser) ? leaves.some(l => l.userId === currentUser.id && isWithinInterval(todayDate, { start: startOfDay(parseISO(l.startDate)), end: endOfDay(parseISO(l.endDate)) })) : false, [todayDate, currentUser, leaves]);
@@ -253,7 +252,7 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
         <Card>
           <CardHeader>
             <CardTitle>{dict.todayTitle}</CardTitle>
-            <CardDescription suppressHydrationWarning>{format(todayDate, 'eeee, dd MMMM yyyy', { locale: currentLocale })}</CardDescription>
+            <CardDescription suppressHydrationWarning>{todayDate ? format(todayDate, 'eeee, dd MMMM yyyy', { locale: currentLocale }) : ''}</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (

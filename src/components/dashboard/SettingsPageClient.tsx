@@ -1,4 +1,3 @@
-// src/components/dashboard/SettingsPageClient.tsx
 'use client';
 
 import * as React from 'react';
@@ -28,7 +27,6 @@ import { API_BASE_URL } from '@/config/api-config';
 
 const defaultDict = getDictionary('en');
 
-// Helper function to convert a base64 string to a Uint8Array.
 const urlBase64ToUint8Array = (base64String: string) => {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -72,6 +70,7 @@ export default function SettingsPageClient() {
    const [notificationPermission, setNotificationPermission] = React.useState('default');
    const [isSubscribing, setIsSubscribing] = React.useState(false);
    
+   // Initialize with 0 to match server-side render, then update on mount
    const [avatarKey, setAvatarKey] = React.useState(0);
    const [isSecureContext, setIsSecureContext] = React.useState(false);
 
@@ -86,7 +85,7 @@ export default function SettingsPageClient() {
 
    React.useEffect(() => {
      setIsClient(true);
-     setAvatarKey(Date.now());
+     setAvatarKey(Date.now()); // Set unique key on client to avoid cache/hydration issues
      if (typeof window !== 'undefined') {
         setIsSecureContext(window.isSecureContext);
         if ('Notification' in window) {
@@ -310,7 +309,7 @@ export default function SettingsPageClient() {
       toast({ title: 'Success', description: 'Profile picture updated successfully.' });
       setAvatarFile(null);
       setAvatarPreview(null);
-      setAvatarKey(Date.now()); // Force re-render
+      setAvatarKey(Date.now()); // Update key to refresh image components
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Upload Failed', description: error.message });
     } finally {

@@ -1,4 +1,3 @@
-// src/components/dashboard/ProjectsPageClient.tsx
 'use client';
 
 import * as React from 'react';
@@ -83,7 +82,7 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/dropdown-menu";
 import { cn } from '@/lib/utils';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -125,9 +124,9 @@ interface GroupedHistoryItem {
 
 const finalDocRequirements = ['Dokumen Final', 'Berita Acara', 'SKRD', 'Bukti Pembayaran', 'Ijin Terbit', 'Pelunasan', 'Tanda Terima'];
 
-// Browser-safe sanitization helper
 function safeSanitize(text: string): string {
     return text.toLowerCase()
+        .trim()
         .replace(/\s+/g, '_')
         .replace(/[^a-z0-9_-]/g, '')
         .replace(/_+/g, '_');
@@ -170,12 +169,9 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   const [surveyTime, setSurveyTime] = React.useState('');
   const [surveyDescription, setSurveyDescription] = React.useState('');
 
-  const [isAddingToCalendar, setIsAddingToCalendar] = React.useState(false);
   const [isDownloading, setIsDownloading] = React.useState(false);
-  const [revisionNote, setRevisionNote] = React.useState('');
-
-  const [statusFilter, setStatusFilter] = React.useState<string[]>([]);
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [statusFilter, setStatusFilter] = React.useState<string[]>([]);
   const [displayedProjects, setDisplayedProjects] = React.useState<Project[]>([]);
   
   const [parallelUploadChecklist, setParallelUploadChecklist] = React.useState<ParallelUploadChecklist | null>(null);
@@ -188,7 +184,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
   const projectIdFromUrl = searchParams.get('projectId');
 
-  // Helper safe path utility for browser
   const getBaseName = (filePath: string) => {
     return filePath.split('/').pop() || '';
   };
@@ -231,12 +226,15 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         const projectToSelect = allProjects.find(p => p.id === projectIdFromUrl);
         if (projectToSelect) {
           setSelectedProject(projectToSelect);
-          setScheduleDate(projectToSelect.scheduleDetails?.date ? parseISO(projectToSelect.scheduleDetails.date) : undefined);
-          setScheduleTime(projectToSelect.scheduleDetails?.time || '');
-          setScheduleLocation(projectToSelect.scheduleDetails?.location || '');
-          setSurveyDate(projectToSelect.surveyDetails?.date ? parseISO(projectToSelect.surveyDetails.date) : undefined);
-          setSurveyTime(projectToSelect.surveyDetails?.time || '');
-          setSurveyDescription(projectToSelect.surveyDetails?.description || '');
+          // Set these on mount to avoid hydration mismatch
+          if (isClient) {
+              setScheduleDate(projectToSelect.scheduleDetails?.date ? parseISO(projectToSelect.scheduleDetails.date) : undefined);
+              setScheduleTime(projectToSelect.scheduleDetails?.time || '');
+              setScheduleLocation(projectToSelect.scheduleDetails?.location || '');
+              setSurveyDate(projectToSelect.surveyDetails?.date ? parseISO(projectToSelect.surveyDetails.date) : undefined);
+              setSurveyTime(projectToSelect.surveyDetails?.time || '');
+              setSurveyDescription(projectToSelect.surveyDetails?.description || '');
+          }
         } else {
           toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.projectNotFound });
           router.replace('/dashboard/projects', { scroll: false });
@@ -245,7 +243,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         setSelectedProject(null);
       }
     }
-  }, [projectIdFromUrl, allProjects, router, toast, projectsDict]);
+  }, [projectIdFromUrl, allProjects, router, toast, projectsDict, isClient]);
 
     const getParallelChecklistStatus = React.useCallback((project: Project | null): ParallelUploadChecklist | null => {
         if (!project) return null;
@@ -283,8 +281,8 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             const checklistItems = requiredChecklists[division];
             if (checklistItems) {
                 currentStatus[division] = checklistItems.map(item => {
-                    const tag = safeSanitize(division + "_" + item.name);
-                    const prefix = tag + "_";
+                    // Use a very strict prefix: arsitek_gambar_
+                    const prefix = safeSanitize(division + "_" + item.name) + "_";
                     const matchingFiles = projectFiles.filter(file => {
                         const baseName = getBaseName(file.path);
                         return baseName.startsWith(prefix);
@@ -311,8 +309,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         const projectFiles = selectedProject.files || [];
 
         return finalDocRequirements.map(reqName => {
-            const tag = safeSanitize("final_" + reqName);
-            const prefix = tag + "_";
+            const prefix = safeSanitize("final_" + reqName) + "_";
             const matchingFiles = projectFiles.filter(file => {
                 const baseName = getBaseName(file.path);
                 return baseName.startsWith(prefix);
@@ -326,6 +323,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     }, [selectedProject]);
 
   const formatTimestamp = React.useCallback((timestamp: string): string => {
+    if (!isClient) return ''; // Avoid mismatch
     const locale = language === 'id' ? 'id-ID' : 'en-US';
     try {
       return new Date(timestamp).toLocaleString(locale, {
@@ -335,12 +333,12 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     } catch (e) {
       return projectsDict.invalidDate || "Invalid Date";
     }
-  }, [language, projectsDict]);
+  }, [language, projectsDict, isClient]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       const filesArray = Array.from(event.target.files);
-      setUploadedFiles(prevFiles => [...prevFiles, ...filesArray]);
+      setSelectedFiles(prevFiles => [...prevFiles, ...filesArray]);
     }
   };
 
@@ -438,6 +436,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         if (currentFiles.length > 0) {
             let finalAssociatedItem = associatedChecklistItem;
             if (divisionForFile && associatedChecklistItem) {
+                // Ensure prefix is consistent with backend sanitization: division_item_
                 finalAssociatedItem = `${divisionForFile}_${associatedChecklistItem}`;
             }
 
@@ -716,7 +715,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                                     <AccordionTrigger disabled={group.files.length === 0}>
                                         <div className="flex items-start gap-3 flex-1 text-left">
                                             <div className={`mt-1 h-3 w-3 rounded-full flex-shrink-0 ${index === 0 ? 'bg-primary animate-pulse' : 'bg-muted'}`}></div>
-                                            <div>{group.entries.map((e, ei) => (<p key={ei} className="text-sm font-medium">{translateHistoryAction(e.action)}</p>))}<p className="text-xs text-muted-foreground">{formatTimestamp(group.timestamp)}</p></div>
+                                            <div>{group.entries.map((e, ei) => (<p key={ei} className="text-sm font-medium">{translateHistoryAction(e.action)}</p>))}<p className="text-xs text-muted-foreground" suppressHydrationWarning>{formatTimestamp(group.timestamp)}</p></div>
                                         </div>
                                     </AccordionTrigger>
                                     <AccordionContent>
@@ -737,7 +736,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                              <li key={`final-${item.name}`} className="flex text-sm p-2 border rounded-md gap-2 flex-col items-start">
                                <div className="flex justify-between items-center w-full">
                                  <div className="flex items-center gap-2 flex-1 min-w-0">{item.uploaded ? <CheckCircle className="h-4 w-4 text-green-500" /> : <CircleIcon className="h-4 w-4 text-muted-foreground" />}<span className={cn("truncate", item.uploaded ? "text-foreground font-medium" : "text-muted-foreground")}>{item.name}</span></div>
-                                 {(currentUser?.roles.some(r => ['Admin Proyek', 'Owner', 'Akuntan'].includes(r))) && (<Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setUploadDialogState({ isOpen: true, item, division: 'final' })} disabled={isSubmitting || (idx > 0 && !all[idx-1].uploaded)}><Upload className="h-3 w-3" /></Button>)}
+                                 {(currentUser?.roles.some(r => ['Admin Proyek', 'Owner', 'Akuntan'].includes(r))) && (<Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setUploadDialogState({ isOpen: true, item, division: 'final' })} disabled={isSubmitting}><Upload className="h-3 w-3" /></Button>)}
                                </div>
                                {item.files.length > 0 && (<ul className="pl-6 pt-1 space-y-1 w-full border-t mt-1">{item.files.map(f => (<li key={f.path} className="flex justify-between items-center text-xs"><span className="truncate pr-2">{f.name}</span><div className="flex items-center gap-1"><Button variant="ghost" size="icon" onClick={() => handleDownloadFile(f)} className="h-6 w-6"><Download className="h-3 w-3 text-primary" /></Button><Button variant="ghost" size="icon" onClick={() => handleDeleteFile(f.path, f.name)} className="h-6 w-6"><Trash2 className="h-3 w-3 text-destructive" /></Button></div></li>))}</ul>)}
                              </li>

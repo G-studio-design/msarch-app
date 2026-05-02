@@ -107,7 +107,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
 
   useEffect(() => {
     setIsClient(true);
-    // Update key after mount
+    // Update key after mount to ensure client and server initial render match
     setAvatarKey(Date.now());
   }, []);
   
@@ -240,7 +240,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
 
 
    const formatTimestamp = useCallback((timestamp: string): string => {
-       if (!isClient) return ''; // Never render on server
+       if (!isClient) return ''; // Never render relative time on server to avoid hydration mismatch
        const now = new Date();
        const past = new Date(timestamp);
        const diffSeconds = Math.round((now.getTime() - past.getTime()) / 1000);
