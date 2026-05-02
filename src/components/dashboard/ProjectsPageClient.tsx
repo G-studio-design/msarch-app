@@ -325,7 +325,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             const checklistItems = requiredChecklists[division];
             if (checklistItems) {
                 currentStatus[division] = checklistItems.map(item => {
-                    // Use a unique prefix combining division and item name to prevent cross-division completion
+                    // Gunakan prefix yang mencakup nama divisi untuk mencegah tabrakan centang
                     const prefix = sanitizeForPath(division + "_" + item.name).replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
                     const uploadedFiles = projectFiles.filter(file => {
                         const baseName = path.basename(file.path);
@@ -535,9 +535,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         onProgress(progress);
         
         if (chunkIndex === totalChunks - 1) {
-            // Last chunk response contains the final temp path
             const lastChunkResponse = await response.json();
-            // Now, make the final API call to move the file and add it to the project
             const finalResponse = await fetch(`${API_BASE_URL}/api/upload-file`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -589,7 +587,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             return;
         }
 
-        // Use a unique prefix to prevent cross-division checklist completion
         const isParallel = ['Arsitek', 'Struktur', 'MEP'].includes(divisionForFile || '');
         const prefix = isParallel ? divisionForFile : (associatedChecklistItem ? 'final' : null);
         const finalItemName = (prefix && associatedChecklistItem) ? `${prefix}_${associatedChecklistItem}` : associatedChecklistItem;
@@ -717,7 +714,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   
   const handleSurveyScheduleSubmit = React.useCallback(async () => {
         if (!currentUser || !Array.isArray(currentUser.roles) || !selectedProject ) { 
-            toast({ variant: 'destructive', title: projectsDict.toast.permissionDenied, description: projectsDict.toast.notYourTurn });
+            toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.notYourTurn });
             return;
         }
         const canSubmitSurvey = selectedProject.status === 'Pending Survey Details' &&
@@ -727,12 +724,12 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                             );
 
         if (!canSubmitSurvey) {
-            toast({ variant: 'destructive', title: projectsDict.toast.permissionDenied, description: "You do not have permission to submit survey details for this project at this stage." });
+            toast({ variant: 'destructive', title: projectsDict.toast.error, description: "You do not have permission to submit survey details for this project at this stage." });
             return;
         }
 
         if (!surveyDate || !surveyTime) {
-            toast({ variant: 'destructive', title: projectsDict.toast.missingInput, description: "Please provide survey date and time." });
+            toast({ variant: 'destructive', title: projectsDict.toast.error, description: "Please provide survey date and time." });
             return;
         }
         await handleProgressSubmit('submitted');
@@ -740,7 +737,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     const handleSurveyCompletionSubmit = React.useCallback(async () => {
         if (!currentUser || !selectedProject || selectedProject.status !== 'Survey Scheduled') {
-            toast({ variant: 'destructive', title: projectsDict.toast.permissionDenied, description: projectsDict.toast.notYourTurn });
+            toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.notYourTurn });
             return;
         }
         await handleProgressSubmit('submitted', uploadedFiles, description);
@@ -778,22 +775,22 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
   const handleDecision = React.useCallback((decision: 'approved' | 'rejected' | 'completed' | 'revise_offer' | 'revise_dp' | 'canceled_after_sidang' | 'revision_completed_proceed_to_invoice' | 'mark_division_complete' | 'reschedule_sidang') => {
     if (!currentUser || !Array.isArray(currentUser.roles) || !selectedProject ) {
-      toast({ variant: 'destructive', title: projectsDict.toast.permissionDenied, description: projectsDict.toast.notYourTurn });
+      toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.notYourTurn });
       return;
     }
     const isOwnerAction = ['approved', 'rejected', 'revise_offer', 'revise_dp', 'canceled_after_sidang', 'reschedule_sidang'].includes(decision);
     if (isOwnerAction && !currentUser.roles.includes('Owner')) {
-        toast({ variant: 'destructive', title: projectsDict.toast.permissionDenied, description: projectsDict.toast.onlyOwnerDecision });
+        toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.onlyOwnerDecision });
         return;
     }
     const isPostSidangAdminAction = decision === 'revision_completed_proceed_to_invoice';
      if (isPostSidangAdminAction && !currentUser.roles.includes('Admin Proyek')) {
-        toast({ variant: 'destructive', title: projectsDict.toast.permissionDenied, description: "Only Admin Proyek can complete post-sidang revisions." });
+        toast({ variant: 'destructive', title: projectsDict.toast.error, description: "Only Admin Proyek can complete post-sidang revisions." });
         return;
     }
 
     if (decision === 'completed' && selectedProject.status === 'Pending Final Documents' && !currentUser.roles.some(r => ['Admin Proyek', 'Owner'].includes(r))) {
-        toast({ variant: 'destructive', title: projectsDict.toast.permissionDenied, description: "Only Admin Proyek or Owner can complete the project at this stage." });
+        toast({ variant: 'destructive', title: projectsDict.toast.error, description: "Only Admin Proyek or Owner can complete the project at this stage." });
         return;
     }
 
@@ -814,7 +811,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
   const handleScheduleSubmit = React.useCallback(() => {
     if (!currentUser || !Array.isArray(currentUser.roles) || !selectedProject) {
-        toast({ variant: 'destructive', title: projectsDict.toast.permissionDenied, description: projectsDict.toast.schedulingPermissionDenied });
+        toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.schedulingPermissionDenied });
         return;
     }
     const canSchedule = selectedProject.status === 'Pending Scheduling' &&
@@ -822,12 +819,12 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                           currentUser.roles.includes('Owner') );
 
      if (!canSchedule) {
-        toast({ variant: 'destructive', title: projectsDict.toast.permissionDenied, description: projectsDict.toast.schedulingPermissionDenied });
+        toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.schedulingPermissionDenied });
         return;
      }
 
      if (!scheduleDate || !scheduleTime || !scheduleLocation.trim()) {
-         toast({ variant: 'destructive', title: projectsDict.toast.missingScheduleInfo, description: projectsDict.toast.provideDateTimeLoc });
+         toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.provideDateTimeLoc });
          return;
      }
      handleProgressSubmit('scheduled');
@@ -835,12 +832,12 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     const handleAddToCalendar = React.useCallback(async () => {
       if (!selectedProject || selectedProject.status !== 'Scheduled' || !currentUser) {
-        toast({ variant: 'destructive', title: projectsDict.toast.cannotAddCalendarYet, description: projectsDict.toast.mustScheduleFirst });
+        toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.mustScheduleFirst });
         return;
       }
 
       if (!currentUser.id) {
-        toast({ variant: 'destructive', title: projectsDict.toast.calendarError, description: "User ID is missing." });
+        toast({ variant: 'destructive', title: projectsDict.toast.error, description: "User ID is missing." });
         return;
       }
 
@@ -862,7 +859,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
       }
 
       if (!selectedProject.scheduleDetails || !selectedProject.scheduleDetails.date || !selectedProject.scheduleDetails.time) {
-        toast({ variant: 'destructive', title: projectsDict.toast.errorFindingSchedule, description: projectsDict.toast.couldNotFindSchedule });
+        toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.couldNotFindSchedule });
         return;
       }
 
@@ -1036,7 +1033,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     const handleReviseSubmit = React.useCallback(async () => {
       if (!currentUser || !Array.isArray(currentUser.roles) || !selectedProject) {
-        toast({ variant: 'destructive', title: projectsDict.toast.permissionDenied, description: projectsDict.toast.revisionPermissionDenied });
+        toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.revisionPermissionDenied });
         return;
       }
       
@@ -1048,7 +1045,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
       }
 
       if (!revisionNote.trim()) {
-        toast({ variant: 'destructive', title: projectsDict.toast.revisionError, description: projectsDict.toast.revisionNoteRequired });
+        toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.revisionNoteRequired });
         return;
       }
 
@@ -1090,7 +1087,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         } else {
           desc = error.message || desc;
         }
-        toast({ variant: 'destructive', title: projectsDict.toast.revisionError, description: desc });
+        toast({ variant: 'destructive', title: projectsDict.toast.error, description: desc });
       } finally {
         setIsRevising(false);
       }
@@ -1186,7 +1183,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         const canTakeAction = currentUser.roles.includes('Admin Proyek');
         const isProjectActive = !['Completed', 'Canceled'].includes(selectedProject.status);
         
-        // Check if the "Pending Admin Files" step has been passed
         const hasCompletedAdminFilesStep = selectedProject.workflowHistory.some(h => 
             h.action.toLowerCase().includes('berkas administrasi')
         );
