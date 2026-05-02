@@ -1,3 +1,4 @@
+
 // src/components/dashboard/ProjectsPageClient.tsx
 'use client';
 
@@ -96,7 +97,6 @@ import {
 } from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
 import { id as IndonesianLocale, enUS as EnglishLocale } from 'date-fns/locale';
-import { addFilesToProject as addFilesToProjectService } from '@/services/project-service';
 import { API_BASE_URL } from '@/config/api-config';
 import { sanitizeForPath } from '@/lib/path-utils';
 import path from 'path';
@@ -325,10 +325,11 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             const checklistItems = requiredChecklists[division];
             if (checklistItems) {
                 currentStatus[division] = checklistItems.map(item => {
-                    const sanitizedItemName = sanitizeForPath(item.name).replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+                    // Use a unique prefix combining division and item name to prevent cross-division completion
+                    const prefix = sanitizeForPath(division + "_" + item.name).replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
                     const uploadedFiles = projectFiles.filter(file => {
                         const baseName = path.basename(file.path);
-                        return baseName.startsWith(`${sanitizedItemName}_`);
+                        return baseName.startsWith(`${prefix}_`);
                     });
                     return {
                         ...item,
@@ -588,37 +589,39 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             return;
         }
 
-        // New Logic: Upload files one by one using FormData
+        // Use a unique prefix to prevent cross-division checklist completion
+        const isParallel = ['Arsitek', 'Struktur', 'MEP'].includes(divisionForFile || '');
+        const prefix = isParallel ? divisionForFile : (associatedChecklistItem ? 'final' : null);
+        const finalItemName = (prefix && associatedChecklistItem) ? `${prefix}_${associatedChecklistItem}` : associatedChecklistItem;
+
         if (currentFiles.length > 0) {
             for (const file of currentFiles) {
                 const formDataPayload: Record<string, string | null> = {
                   projectId: selectedProject.id,
                   userId: currentUser.id,
-                  uploaderRole: divisionForFile || actingRole || currentUser.roles[0],
-                  note: currentDescription, // The note is associated with each file upload
-                  associatedChecklistItem: associatedChecklistItem || null,
+                  uploaderRole: actingRole || currentUser.roles[0],
+                  note: currentDescription,
+                  associatedChecklistItem: finalItemName,
                 };
                 try {
                   await uploadFileWithFormData(file, formDataPayload, (progress) => {
-                      // Here you can update a progress state if you want a visual indicator
                       console.log(`Upload progress for ${file.name}: ${progress}%`);
                   });
                 } catch (error: any) {
                     console.error("Error uploading file:", file.name, error);
                     toast({ variant: 'destructive', title: projectsDict.toast.uploadError, description: error.message });
                     hadError = true;
-                    return; // Stop on first upload error
+                    return; 
                 }
             }
         }
         
-        // After all files are uploaded (or if no files), submit the final workflow update
         const updatePayload: UpdateProjectParams = {
             projectId: selectedProject.id,
             updaterRoles: currentUser.roles,
             updaterUsername: currentUser.username,
             actionTaken: actionTaken,
-            note: currentFiles.length > 0 ? undefined : (currentDescription || undefined), // Only send note if no files were part of this action
+            note: currentFiles.length > 0 ? undefined : (currentDescription || undefined), 
             scheduleDetails: (selectedProject.status === 'Pending Scheduling' && actionTaken === 'scheduled' && scheduleDate) ? {
                 date: format(scheduleDate, 'yyyy-MM-dd'),
                 time: scheduleTime,
@@ -644,7 +647,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         
         toast({ title: projectsDict.toast.progressSubmitted, description: "Project has been updated successfully." });
 
-        // Reset form states
         setDescription('');
         setUploadedFiles([]);
         if (actionTaken.includes('revise')) { setRevisionNote(''); }
@@ -664,7 +666,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             toast({ variant: 'destructive', title: projectsDict.toast.updateError, description: error.message || projectsDict.toast.failedToSubmitProgress });
          }
       } finally {
-        // This block runs regardless of success or failure
         if (selectedProject) {
             newlyUpdatedProject = await fetchProjectById(selectedProject.id);
             if (newlyUpdatedProject) {
@@ -1364,10 +1365,10 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         const projectFiles = selectedProject.files || [];
 
         return finalDocRequirements.map(reqName => {
-            const sanitizedReqName = sanitizeForPath(reqName).replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+            const prefix = sanitizeForPath("final_" + reqName).replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
             const uploadedFiles = projectFiles.filter(file => {
                 const baseName = path.basename(file.path);
-                return baseName.startsWith(`${sanitizedReqName}_`);
+                return baseName.startsWith(`${prefix}_`);
             });
             return {
                 name: reqName,
@@ -1584,7 +1585,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                         variant="outline"
                         size="sm"
                         className="h-7 px-2"
-                        onClick={() => setUploadDialogState({ isOpen: true, item: item, division: canAccountantUpload ? 'Akuntan' : 'Admin Proyek' })}
+                        onClick={() => setUploadDialogState({ isOpen: true, item: item, division: 'final' })}
                         disabled={isSubmitting || !isPreviousUploaded}
                         title={!isPreviousUploaded ? `Harus mengunggah "${allItems[index - 1].name}" terlebih dahulu` : `Unggah ${item.name}`}
                     >
@@ -2274,4 +2275,3 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     </div>
   );
 }
-
