@@ -1,4 +1,3 @@
-
 // src/components/dashboard/ProjectsPageClient.tsx
 'use client';
 
@@ -98,7 +97,6 @@ import {
 import { format, parseISO } from 'date-fns';
 import { id as IndonesianLocale, enUS as EnglishLocale } from 'date-fns/locale';
 import { API_BASE_URL } from '@/config/api-config';
-import { sanitizeForPath } from '@/lib/path-utils';
 
 const projectStatuses = [
     'Pending Offer', 'Pending Approval', 'Pending DP Invoice',
@@ -127,6 +125,14 @@ interface GroupedHistoryItem {
 
 const finalDocRequirements = ['Dokumen Final', 'Berita Acara', 'SKRD', 'Bukti Pembayaran', 'Ijin Terbit', 'Pelunasan', 'Tanda Terima'];
 
+// Browser-safe sanitization helper
+function safeSanitize(text: string): string {
+    return text.toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_-]/g, '')
+        .replace(/_+/g, '_');
+}
+
 interface UploadDialogState {
   isOpen: boolean;
   item: { name: string } | null;
@@ -147,7 +153,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   const dict = React.useMemo(() => getDictionary(language), [language]);
   const projectsDict = React.useMemo(() => dict.projectsPage, [dict]);
   const dashboardDict = React.useMemo(() => dict.dashboardPage, [dict]);
-  const settingsDict = React.useMemo(() => dict.settingsPage, [dict]);
 
   const [allProjects, setAllProjects] = React.useState<Project[]>(initialProjects);
   const [isLoadingProjects, setIsLoadingProjects] = React.useState(false);
@@ -168,39 +173,14 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   const [isAddingToCalendar, setIsAddingToCalendar] = React.useState(false);
   const [isDownloading, setIsDownloading] = React.useState(false);
   const [revisionNote, setRevisionNote] = React.useState('');
-  const [isRevising, setIsRevising] = React.useState(false);
 
   const [statusFilter, setStatusFilter] = React.useState<string[]>([]);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [displayedProjects, setDisplayedProjects] = React.useState<Project[]>([]);
-
-  const [isInitialImageUploadDialogOpen, setIsInitialImageUploadDialogOpen] = React.useState(false);
-  const [initialImageFiles, setInitialImageFiles] = React.useState<File[]>([]);
-  const [initialImageDescription, setInitialImageDescription] = React.useState('');
-  const [isSubmittingInitialImages, setIsSubmittingInitialImages] = React.useState(false);
   
   const [parallelUploadChecklist, setParallelUploadChecklist] = React.useState<ParallelUploadChecklist | null>(null);
 
-  const [isPostSidangRevisionDialogOpen, setIsPostSidangRevisionDialogOpen] = React.useState(false);
-  const [postSidangRevisionNote, setPostSidangRevisionNote] = React.useState('');
-  const [postSidangRevisionFiles, setPostSidangRevisionFiles] = React.useState<File[]>([]);
-
   const [isDeletingFile, setIsDeletingFile] = React.useState<string | null>(null);
-
-  const [isGenericRevisionDialogOpen, setIsGenericRevisionDialogOpen] = React.useState(false);
-  
-  const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = React.useState(false);
-  const [rescheduleDate, setRescheduleDate] = React.useState<Date | undefined>();
-  const [rescheduleTime, setRescheduleTime] = React.useState('');
-  const [rescheduleNote, setRescheduleNote] = React.useState('');
-
-  const [isRescheduleFromParallelDialogOpen, setIsRescheduleFromParallelDialogOpen] = React.useState(false);
-  const [rescheduleFromParallelNote, setRescheduleFromParallelNote] = React.useState('');
-  
-  const [adminFiles, setAdminFiles] = React.useState<File[]>([]);
-  const [adminFileNote, setAdminFileNote] = React.useState('');
-  const [isUploadingAdminFiles, setIsUploadingAdminFiles] = React.useState(false);
-  
   const [uploadDialogState, setUploadDialogState] = React.useState<UploadDialogState>({ isOpen: false, item: null, division: null });
 
   const [isClient, setIsClient] = React.useState(false);
@@ -303,16 +283,16 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             const checklistItems = requiredChecklists[division];
             if (checklistItems) {
                 currentStatus[division] = checklistItems.map(item => {
-                    // prefix: "arsitek_gambar_"
-                    const prefix = sanitizeForPath(division + "_" + item.name).replace(/[^a-z0-9_]/g, '') + "_";
-                    const uploadedFiles = projectFiles.filter(file => {
+                    const tag = safeSanitize(division + "_" + item.name);
+                    const prefix = tag + "_";
+                    const matchingFiles = projectFiles.filter(file => {
                         const baseName = getBaseName(file.path);
                         return baseName.startsWith(prefix);
                     });
                     return {
                         ...item,
-                        uploaded: uploadedFiles.length > 0,
-                        files: uploadedFiles,
+                        uploaded: matchingFiles.length > 0,
+                        files: matchingFiles,
                     };
                 });
             }
@@ -331,16 +311,16 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         const projectFiles = selectedProject.files || [];
 
         return finalDocRequirements.map(reqName => {
-            // prefix: "final_berita_acara_"
-            const prefix = sanitizeForPath("final_" + reqName).replace(/[^a-z0-9_]/g, '') + "_";
-            const uploadedFiles = projectFiles.filter(file => {
+            const tag = safeSanitize("final_" + reqName);
+            const prefix = tag + "_";
+            const matchingFiles = projectFiles.filter(file => {
                 const baseName = getBaseName(file.path);
                 return baseName.startsWith(prefix);
             });
             return {
                 name: reqName,
-                uploaded: uploadedFiles.length > 0,
-                files: uploadedFiles,
+                uploaded: matchingFiles.length > 0,
+                files: matchingFiles,
             };
         });
     }, [selectedProject]);
@@ -357,60 +337,15 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     }
   }, [language, projectsDict]);
 
-   const formatDateOnly = React.useCallback((timestamp: string | undefined | null): string => {
-      if (!timestamp) return projectsDict.notApplicable || "N/A";
-      const locale = language === 'id' ? 'id-ID' : 'en-US';
-      try {
-            return new Date(timestamp).toLocaleDateString(locale, {
-                year: 'numeric', month: 'short', day: 'numeric',
-            });
-        } catch (e) {
-            return projectsDict.invalidDate || "Invalid Date";
-        }
-   }, [language, projectsDict]);
-
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       const filesArray = Array.from(event.target.files);
       setUploadedFiles(prevFiles => [...prevFiles, ...filesArray]);
     }
   };
-  
-  const handleAdminFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      const filesArray = Array.from(event.target.files);
-      setAdminFiles(prevFiles => [...prevFiles, ...filesArray]);
-    }
-  };
 
   const removeFile = (index: number) => {
     setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
-  };
-  
-  const removeAdminFile = (index: number) => {
-    setAdminFiles(adminFiles.filter((_, i) => i !== index));
-  };
-  
-  const handleInitialImageFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-        const filesArray = Array.from(event.target.files);
-        setInitialImageFiles(prevFiles => [...prevFiles, ...filesArray]);
-    }
-  };
-
-  const removeInitialImageFile = (index: number) => {
-    setInitialImageFiles(initialImageFiles.filter((_, i) => i !== index));
-  };
-  
-  const handlePostSidangRevisionFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      const filesArray = Array.from(event.target.files);
-      setPostSidangRevisionFiles(prevFiles => [...prevFiles, ...filesArray]);
-    }
-  };
-  
-  const removePostSidangRevisionFile = (index: number) => {
-    setPostSidangRevisionFiles(postSidangRevisionFiles.filter((_, i) => i !== index));
   };
 
   const getTranslatedStatus = React.useCallback((statusKey: string): string => {
@@ -441,14 +376,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     return <Badge variant={variant} className={className}><Icon className="mr-1 h-3 w-3" />{translatedStatus}</Badge>;
   }, [dashboardDict]);
 
-  const canPerformSelectedProjectAction = React.useMemo(() => {
-    if (!currentUser || !Array.isArray(currentUser.roles) || !selectedProject) return false;
-    if (selectedProject.status === 'Scheduled' && (currentUser.roles.includes('Owner') || currentUser.roles.includes('Admin Proyek'))) return true;
-    if (currentUser.roles.includes('Admin Developer') || currentUser.roles.includes('Owner')) return true;
-    const assignedDivisionCleaned = selectedProject.assignedDivision?.trim();
-    return currentUser.roles.some(role => role === assignedDivisionCleaned);
-}, [currentUser, selectedProject]);
-  
   const actingRole = React.useMemo(() => {
     if (!currentUser || !Array.isArray(currentUser.roles) || !selectedProject) return null;
     const designRoles = ['Arsitek', 'Struktur', 'MEP'];
@@ -509,7 +436,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     try {
         if (currentFiles.length > 0) {
-            // Precise prefix generation: e.g. "arsitek_gambar"
             let finalAssociatedItem = associatedChecklistItem;
             if (divisionForFile && associatedChecklistItem) {
                 finalAssociatedItem = `${divisionForFile}_${associatedChecklistItem}`;
@@ -538,9 +464,9 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                 time: scheduleTime,
                 location: scheduleLocation
             } : undefined,
-             surveyDetails: (selectedProject.status === 'Pending Survey Details' || selectedProject.status === 'Survey Scheduled') && (actionTaken === 'submitted' || actionTaken === 'reschedule_survey') ? {
-                date: (actionTaken === 'reschedule_survey' && rescheduleDate) ? format(rescheduleDate, 'yyyy-MM-dd') : (surveyDate ? format(surveyDate, 'yyyy-MM-dd') : ''),
-                time: (actionTaken === 'reschedule_survey') ? rescheduleTime : surveyTime,
+             surveyDetails: (selectedProject.status === 'Pending Survey Details' || selectedProject.status === 'Survey Scheduled') && actionTaken === 'submitted' ? {
+                date: surveyDate ? format(surveyDate, 'yyyy-MM-dd') : '',
+                time: surveyTime,
                 description: surveyDescription
             } : undefined,
         };
@@ -568,67 +494,14 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
       } finally {
         setIsSubmitting(false);
       }
-  }, [currentUser, selectedProject, uploadedFiles, description, scheduleDate, scheduleTime, scheduleLocation, surveyDate, surveyTime, surveyDescription, projectsDict, toast, actingRole, uploadDialogState, rescheduleDate, rescheduleTime, fetchProjectById]);
-
-  const handleAdminFileUpload = async () => {
-    if (!currentUser || !selectedProject || adminFiles.length === 0) return;
-    setIsUploadingAdminFiles(true);
-    try {
-        for (const file of adminFiles) {
-            await uploadFileWithFormData(file, {
-              projectId: selectedProject.id,
-              userId: currentUser.id,
-              uploaderRole: currentUser.roles[0],
-              note: adminFileNote,
-              associatedChecklistItem: null,
-            }, (p) => console.log(`Admin ${file.name}: ${p}%`));
-        }
-        const updated = await fetchProjectById(selectedProject.id);
-        if (updated) { setAllProjects(prev => prev.map(p => (p.id === updated.id ? updated : p))); setSelectedProject(updated); }
-        toast({ title: "Berhasil", description: "File administrasi ditambahkan." });
-        setAdminFiles([]); setAdminFileNote('');
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: "Gagal", description: error.message });
-    } finally {
-        setIsUploadingAdminFiles(false);
-    }
-  };
+  }, [currentUser, selectedProject, uploadedFiles, description, scheduleDate, scheduleTime, scheduleLocation, surveyDate, surveyTime, surveyDescription, projectsDict, toast, actingRole, uploadDialogState, fetchProjectById]);
 
   const handleDecision = React.useCallback((decision: string) => {
     if (!currentUser || !selectedProject ) return;
     handleProgressSubmit(decision);
   }, [currentUser, selectedProject, handleProgressSubmit]);
 
-  const handleAddToCalendar = React.useCallback(async () => {
-      if (!selectedProject || !currentUser || !currentUser.googleRefreshToken) {
-        toast({ variant: 'destructive', title: "Google Calendar not connected" });
-        return;
-      }
-      const scheduledDateTime = new Date(`${selectedProject.scheduleDetails?.date}T${selectedProject.scheduleDetails?.time}`);
-      const endTime = new Date(scheduledDateTime.getTime() + 60 * 60 * 1000);
-      const eventDetails = {
-        title: `${projectsDict.sidangEventTitlePrefix}: ${selectedProject.title}`,
-        location: selectedProject.scheduleDetails?.location || '',
-        startTime: scheduledDateTime.toISOString(),
-        endTime: endTime.toISOString(),
-        description: `Project Sidang: ${selectedProject.title}`
-      };
-      try {
-        setIsAddingToCalendar(true);
-        const response = await fetch(`${API_BASE_URL}/api/calendar/create-event`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: currentUser.id, eventDetails }),
-        });
-        if (!response.ok) throw new Error('Failed to add event');
-        toast({ title: "Added to Calendar" });
-      } catch (error: any) {
-        toast({ variant: 'destructive', title: "Calendar Error", description: error.message });
-      } finally {
-        setIsAddingToCalendar(false);
-      }
-    }, [selectedProject, currentUser, projectsDict, toast]);
-
-    const roleFilteredProjects = React.useMemo(() => {
+  const roleFilteredProjects = React.useMemo(() => {
         if (!currentUser || !Array.isArray(currentUser.roles)) return [];
         const adminRoles = ['Owner', 'Akuntan', 'Admin Proyek', 'Admin Developer'];
         if (currentUser.roles.some(role => adminRoles.includes(role))) return allProjects;
@@ -805,8 +678,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   };
 
   const renderSelectedProjectDetail = (project: Project) => {
-       const isSurveyDatePassed = project.surveyDetails?.date ? new Date() >= parseISO(project.surveyDetails.date) : false;
-
        return (
            <>
                 <Button variant="outline" onClick={() => {setSelectedProject(null); router.push('/dashboard/projects', { scroll: false });}} className="mb-4 w-full sm:w-auto"><ArrowLeft className="mr-2 h-4 w-4" />{projectsDict.backToList}</Button>

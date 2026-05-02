@@ -37,7 +37,12 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
   const { toast } = useToast();
   
   const [isClient, setIsClient] = React.useState(false);
-  React.useEffect(() => { setIsClient(true) }, []);
+  const [todayDate, setTodayDate] = React.useState<Date | null>(null);
+
+  React.useEffect(() => {
+    setIsClient(true);
+    setTodayDate(new Date());
+  }, []);
 
   const [dict, setDict] = React.useState(defaultDict.attendancePage);
 
@@ -146,7 +151,6 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
             performCheckOut('Normal');
         }
     } else {
-        // Not a workday, allow normal checkout without a reason dialog
         performCheckOut('Normal');
     }
   };
@@ -182,7 +186,6 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
       if (rec.status === 'Present') modifiers.present.push(parseISO(rec.date));
       if (rec.status === 'Late') modifiers.late.push(parseISO(rec.date));
     });
-    // Populate leave days for the current user
     leaves.forEach(l => {
         if (l.userId === currentUser?.id) {
             eachDayOfInterval({start: parseISO(l.startDate), end: parseISO(l.endDate)}).forEach(day => {
@@ -190,7 +193,6 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
             });
         }
     });
-    // Populate holidays
     holidays.forEach(h => {
         modifiers.holiday.push(parseISO(h.date));
     });
@@ -199,16 +201,14 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
   }, [userHistory, leaves, holidays, currentUser]);
   
   const currentLocale = language === 'id' ? IndonesianLocale : EnglishLocale;
-  const today = new Date();
-  const todayKey = daysOfWeek[today.getDay()];
-  const isWorkDayToday = appSettings?.workingHours[todayKey]?.isWorkDay ?? true;
   
-  const isTodayHoliday = holidays.some(h => isSameDay(parseISO(h.date), today));
-  const isTodayOnLeave = leaves.some(l => l.userId === currentUser?.id && isWithinInterval(today, { start: startOfDay(parseISO(l.startDate)), end: endOfDay(parseISO(l.endDate)) }));
+  // These rely on client mount
+  const isWorkDayToday = React.useMemo(() => todayDate ? (appSettings?.workingHours[daysOfWeek[todayDate.getDay()]]?.isWorkDay ?? true) : true, [todayDate, appSettings]);
+  const isTodayHoliday = React.useMemo(() => todayDate ? holidays.some(h => isSameDay(parseISO(h.date), todayDate)) : false, [todayDate, holidays]);
+  const isTodayOnLeave = React.useMemo(() => (todayDate && currentUser) ? leaves.some(l => l.userId === currentUser.id && isWithinInterval(todayDate, { start: startOfDay(parseISO(l.startDate)), end: endOfDay(parseISO(l.endDate)) })) : false, [todayDate, currentUser, leaves]);
 
 
-  // Render logic
-  if (!isClient) {
+  if (!isClient || !todayDate) {
       return (
           <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
               <Skeleton className="h-8 w-1/3 mb-4" />
@@ -253,7 +253,7 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
         <Card>
           <CardHeader>
             <CardTitle>{dict.todayTitle}</CardTitle>
-            <CardDescription>{format(new Date(), 'eeee, dd MMMM yyyy', { locale: currentLocale })}</CardDescription>
+            <CardDescription suppressHydrationWarning>{format(todayDate, 'eeee, dd MMMM yyyy', { locale: currentLocale })}</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -264,14 +264,14 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
                   {todaysRecord.status === 'Late' ? <Clock className="h-6 w-6 text-orange-500" /> : <CheckCircle className="h-6 w-6 text-green-500" />}
                   <div>
                     <p className="font-semibold">{dict.statusLabel}: {dict.status[todaysRecord.status.toLowerCase() as keyof typeof dict.status]}</p>
-                    <p className="text-sm text-muted-foreground">{dict.checkInTimeLabel}: {format(parseISO(todaysRecord.checkInTime!), 'HH:mm:ss')}</p>
+                    <p className="text-sm text-muted-foreground" suppressHydrationWarning>{dict.checkInTimeLabel}: {format(parseISO(todaysRecord.checkInTime!), 'HH:mm:ss')}</p>
                   </div>
                 </div>
                 {todaysRecord.checkOutTime ? (
                   <div className="flex items-center gap-4 p-4 rounded-lg bg-secondary">
                     <LogOut className="h-6 w-6 text-primary" />
                     <div>
-                      <p className="font-semibold">{dict.checkOutTimeLabel}: {format(parseISO(todaysRecord.checkOutTime), 'HH:mm:ss')}</p>
+                      <p className="font-semibold" suppressHydrationWarning>{dict.checkOutTimeLabel}: {format(parseISO(todaysRecord.checkOutTime), 'HH:mm:ss')}</p>
                       {todaysRecord.checkOutReason && todaysRecord.checkOutReason !== 'Normal' && (
                          <p className="text-sm text-muted-foreground">{dict.checkOutReasonLabel}: {todaysRecord.checkOutReason}</p>
                       )}
@@ -294,7 +294,7 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
               <div className="flex items-center gap-4 p-4 rounded-lg bg-secondary text-muted-foreground">
                 <PartyPopper className="h-6 w-6 text-fuchsia-500"/>
                 <div>
-                  <p className="font-semibold">{holidays.find(h => isSameDay(parseISO(h.date), today))?.name || "Hari Libur"}</p>
+                  <p className="font-semibold">{holidays.find(h => isSameDay(parseISO(h.date), todayDate))?.name || "Hari Libur"}</p>
                   <p className="text-sm">Tidak perlu absensi hari ini.</p>
                 </div>
               </div>

@@ -72,8 +72,7 @@ export default function SettingsPageClient() {
    const [notificationPermission, setNotificationPermission] = React.useState('default');
    const [isSubscribing, setIsSubscribing] = React.useState(false);
    
-   // This key will be used to force the AvatarImage to re-render
-   const [avatarKey, setAvatarKey] = React.useState(Date.now());
+   const [avatarKey, setAvatarKey] = React.useState(0);
    const [isSecureContext, setIsSecureContext] = React.useState(false);
 
 
@@ -87,6 +86,7 @@ export default function SettingsPageClient() {
 
    React.useEffect(() => {
      setIsClient(true);
+     setAvatarKey(Date.now());
      if (typeof window !== 'undefined') {
         setIsSecureContext(window.isSecureContext);
         if ('Notification' in window) {
@@ -116,8 +116,7 @@ export default function SettingsPageClient() {
                router.replace('/dashboard/settings', { scroll: false });
            }
        }
-   // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [isClient, searchParams, router, toast]);
+   }, [isClient, searchParams, router, toast, settingsDict.googleCalendarConnected, settingsDict.googleCalendarError, settingsDict.googleCalendarLinkSuccess, settingsDict.googleCalendarUserNotFound, settingsDict.toast]);
 
   const handleLanguageChange = (value: string) => {
     setLanguage(value as 'en' | 'id');

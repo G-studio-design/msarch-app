@@ -144,9 +144,11 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
   const [data, setData] = useState<Awaited<ReturnType<typeof getDashboardData>> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
+  const [todayDate, setTodayDate] = useState<Date | null>(null);
 
   useEffect(() => {
     setIsClient(true);
+    setTodayDate(new Date());
   }, []);
 
   const dashboardDict = useMemo(() => getDictionary(language).dashboardPage, [language]);
@@ -225,8 +227,8 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
   }, [projects, leaveRequests, holidays, isClient]);
 
   const attendanceSummary = useMemo(() => {
-    if (!isClient) return { isHoliday: false, holidayName: null, checkedIn: 0, onLeave: 0, notCheckedIn: 0 };
-    const today = new Date();
+    if (!isClient || !todayDate) return { isHoliday: false, holidayName: null, checkedIn: 0, onLeave: 0, notCheckedIn: 0 };
+    const today = todayDate;
     const todayHoliday = holidays.find(h => isSameDay(parseISO(h.date), today));
 
     if (todayHoliday) {
@@ -251,7 +253,7 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
       onLeave: onLeaveToday.size,
       notCheckedIn: notCheckedInCount,
     };
-  }, [allUsers, todaysAttendance, leaveRequests, holidays, isClient]);
+  }, [allUsers, todaysAttendance, leaveRequests, holidays, isClient, todayDate]);
 
   const activeProjects = useMemo(() => {
     return projects.filter(p => p.status !== 'Completed' && p.status !== 'Canceled');
@@ -287,7 +289,8 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
     return currentUser.roles.some(userRole => allowedRoles.includes(userRole));
   }, [currentUser]);
   
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  useEffect(() => { if (isClient) setSelectedDate(new Date()); }, [isClient]);
 
   if (isLoading || !isAuthHydrated || !isClient) {
     return <DashboardSkeleton />;
@@ -316,7 +319,7 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
                 <Card>
                     <CardHeader>
                         <CardTitle>{dashboardDict.attendanceSummary.title}</CardTitle>
-                        <CardDescription>{format(new Date(), 'eeee, dd MMMM yyyy', { locale: currentLocale })}</CardDescription>
+                        <CardDescription suppressHydrationWarning>{todayDate ? format(todayDate, 'eeee, dd MMMM yyyy', { locale: currentLocale }) : ''}</CardDescription>
                     </CardHeader>
                     <CardContent>
                         {attendanceSummary.isHoliday ? (
@@ -438,7 +441,7 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
                                     <div className="flex-shrink-0 mt-1">{getEventTypeIcon(event.type)}</div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium truncate">{event.title}</p>
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="text-xs text-muted-foreground" suppressHydrationWarning>
                                             {format(event.date, 'eeee, MMM d', { locale: currentLocale })}
                                             {event.time ? ` @ ${event.time}` : ''}
                                         </p>
@@ -481,7 +484,7 @@ export function DashboardPageClient({ initialData: unusedInitialData }: { initia
                         />
                     </div>
                     <div className="space-y-3 pt-4 border-t h-48 overflow-y-auto pr-2">
-                        <h3 className="text-md font-semibold">
+                        <h3 className="text-md font-semibold" suppressHydrationWarning>
                             {selectedDate ? `${dashboardDict.scheduleDetailsTitle} ${format(selectedDate, 'PPPP', { locale: currentLocale })}` : dashboardDict.selectDatePrompt}
                         </h3>
                         {selectedDate && eventsByDate[format(selectedDate, 'yyyy-MM-dd')] ? (

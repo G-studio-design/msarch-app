@@ -1,4 +1,3 @@
-// src/components/layout/DashboardLayoutWrapper.tsx
 'use client';
 
 import type { ReactNode } from 'react';
@@ -98,19 +97,20 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
   const { currentUser, logout, isHydrated: isAuthHydrated } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
+  
   const [isClient, setIsClient] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   
-  // This state is to force re-render of Avatar when user object changes
-  const [avatarKey, setAvatarKey] = useState(Date.now());
-
+  // Use a stable initial key to prevent hydration mismatch
+  const [avatarKey, setAvatarKey] = useState(0);
 
   useEffect(() => {
     setIsClient(true);
+    // Update key after mount
+    setAvatarKey(Date.now());
   }, []);
   
-  // Update the avatarKey whenever the profile picture URL changes in the context
   useEffect(() => {
       if (currentUser?.profilePictureUrl) {
           setAvatarKey(Date.now());
@@ -118,20 +118,15 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
   }, [currentUser?.profilePictureUrl]);
 
 
-  // Listener for messages from the Service Worker
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       const handleServiceWorkerMessage = (event: MessageEvent) => {
         if (event.data && event.data.type === 'navigate' && event.data.url) {
           router.push(event.data.url);
-          // Dispatch a custom event to tell the page to refresh its data
           window.dispatchEvent(new CustomEvent('refresh-data'));
         }
       };
-
       navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
-
-      // Cleanup listener on component unmount
       return () => {
         navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
       };
@@ -159,7 +154,6 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Check notification permission status on load
   useEffect(() => {
     if (isClient && 'Notification' in window && Notification.permission === 'denied') {
         toast({
@@ -176,26 +170,15 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
     if (isClient && currentUser) {
       try {
         const response = await fetch(`${API_BASE_URL}/api/notifications?userId=${currentUser.id}`);
-        if (!response.ok) {
-           console.error("Failed to fetch notifications from API");
-           return;
-        }
+        if (!response.ok) return;
         const fetchedNotifications: Notification[] = await response.json();
-        
-        setNotifications(prevNotifications => {
-          if (JSON.stringify(prevNotifications) !== JSON.stringify(fetchedNotifications)) {
-            return fetchedNotifications;
-          }
-          return prevNotifications;
-        });
-
+        setNotifications(fetchedNotifications);
       } catch (error) {
          console.error("Failed to fetch notifications:", error);
       }
     }
   }, [isClient, currentUser]);
   
-  // Effect for fetching in-app notifications (bell icon)
   useEffect(() => {
     if (isClient && currentUser) {
       fetchNotifications();
@@ -211,7 +194,6 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
 
   const menuItems = useMemo(() => {
     const allRoles = ["Owner", "Akuntan", "Admin Proyek", "Arsitek", "Struktur", "MEP", "Admin Developer"];
-    
     const items: MenuItem[] = [
       { href: "/dashboard", icon: LayoutDashboard, labelKey: "dashboard", roles: allRoles },
       { href: "/dashboard/projects", icon: ClipboardList, labelKey: "projects", roles: allRoles },
@@ -249,9 +231,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
    const getTranslatedRole = useCallback((role: string | string[]): string => {
        const rolesDict = manageUsersDict.roles as Record<string, string>;
        if (!isClient || !rolesDict || !role) return Array.isArray(role) ? role.join(', ') : (role || '');
-       
        const rolesToTranslate = Array.isArray(role) ? role : [role];
-       
        return rolesToTranslate.map(r => {
            const roleKey = r.trim().replace(/\s+/g, '').toLowerCase() as keyof typeof rolesDict;
            return rolesDict?.[roleKey] || r;
@@ -260,15 +240,13 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
 
 
    const formatTimestamp = useCallback((timestamp: string): string => {
-       if (!isClient) return '...';
-
+       if (!isClient) return ''; // Never render on server
        const now = new Date();
        const past = new Date(timestamp);
        const diffSeconds = Math.round((now.getTime() - past.getTime()) / 1000);
        const diffMinutes = Math.round(diffSeconds / 60);
        const diffHours = Math.round(diffMinutes / 60);
        const diffDays = Math.round(diffHours / 24);
-
        if (diffSeconds < 60) return `${diffSeconds}s ago`;
        if (diffMinutes < 60) return `${diffMinutes}m ago`;
        if (diffHours < 24) return `${diffHours}h ago`;
@@ -277,7 +255,6 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
 
    const handleNotificationClick = useCallback(async (notification: Notification) => {
     setIsPopoverOpen(false);
-    
     if (!notification.isRead) {
         try {
             await fetch(`${API_BASE_URL}/api/notifications/mark-as-read`, {
@@ -292,42 +269,29 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
             console.error("Failed to mark notification as read via API:", error);
         }
     }
-    
     if (notification.url) {
         router.push(notification.url);
-        // Dispatch a custom event to tell the page to refresh its data
         window.dispatchEvent(new CustomEvent('refresh-data'));
     }
 }, [router]);
 
    const handleLogout = async () => {
-    const unsubscribe = async () => {
-      if ('serviceWorker' in navigator && 'PushManager' in window) {
-        try {
-          const registration = await navigator.serviceWorker.getRegistration();
-          const subscription = await registration?.pushManager.getSubscription();
-
-          if (subscription) {
-            console.log("Unsubscribing from push notifications...");
-            await fetch(`${API_BASE_URL}/api/notifications/unsubscribe`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ subscription }),
-            });
-            await subscription.unsubscribe();
-            console.log("Successfully unsubscribed.");
-          }
-        } catch (error) {
-          console.error("Error during push notification unsubscribe:", error);
-          toast({
-            variant: "destructive",
-            title: "Logout Warning",
-            description: "Could not unsubscribe from push notifications. You may receive notifications for the wrong account. Please clear site data if issues persist."
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      try {
+        const registration = await navigator.serviceWorker.getRegistration();
+        const subscription = await registration?.pushManager.getSubscription();
+        if (subscription) {
+          await fetch(`${API_BASE_URL}/api/notifications/unsubscribe`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscription }),
           });
+          await subscription.unsubscribe();
         }
+      } catch (error) {
+        console.error("Error during push notification unsubscribe:", error);
       }
-    };
-    await unsubscribe();
+    }
     logout();
     setIsSheetOpen(false);
   };
@@ -337,7 +301,6 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
           <div className="flex min-h-screen w-full bg-muted/40">
              <div className="flex-1 flex flex-col">
                   <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b bg-background px-4 sm:px-6">
-                     {/* Skeleton Header */}
                   </header>
                   <main className="flex-1 overflow-y-auto p-4 md:p-6">
                       <div className="flex justify-center items-center h-[calc(100vh-56px)]">
@@ -364,7 +327,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
                 <PopoverTrigger asChild>
                     <Button variant="outline" size="icon" className="relative h-9 w-9 sm:h-10 sm:w-10">
                         <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
-                       {isClient && unreadCount > 0 && (
+                       {unreadCount > 0 && (
                           <Badge
                              variant="destructive"
                               className="absolute -top-1 -right-1 h-4 w-4 p-0 justify-center text-[10px] sm:text-xs"
@@ -385,7 +348,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
                       </p>
                   </div>
                    <div className="max-h-60 overflow-y-auto">
-                   {isClient && notifications.length > 0 ? (
+                   {notifications.length > 0 ? (
                        notifications.map(notification => (
                          <div
                              key={notification.id}
@@ -401,16 +364,16 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
                            )}></div>
                            <div className="flex-1">
                                <p className="text-sm">{notification.message}</p>
-                              <p className="text-xs text-muted-foreground">{formatTimestamp(notification.timestamp)}</p>
+                              <p className="text-xs text-muted-foreground" suppressHydrationWarning>{formatTimestamp(notification.timestamp)}</p>
                            </div>
                          </div>
                        ))
-                   ) : isClient ? ( 
+                   ) : ( 
                      <div className="p-4 text-center text-sm text-muted-foreground flex flex-col items-center gap-2">
                        <MessageSquareWarning className="h-6 w-6" />
                        {notificationsDict.empty}
                      </div>
-                   ) : null }
+                   )}
                  </div>
                 </PopoverContent>
               </Popover>
@@ -431,7 +394,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
                   </SheetHeader>
 
                    <nav className="flex-1 space-y-2 overflow-y-auto">
-                     {isClient && currentUser && layoutDict ? (
+                     {currentUser ? (
                          visibleMenuItems.map((item) => (
                            <Link
                              key={item.href}
@@ -458,10 +421,10 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
                    <Separator className="my-4 bg-primary-foreground/20" />
 
                    <div className="mt-auto space-y-4">
-                     {isClient && currentUser ? (
+                     {currentUser ? (
                        <div className="flex items-center gap-3 rounded-md p-2">
                          <Avatar className="h-10 w-10 border-2 border-primary-foreground/30">
-                           <AvatarImage key={avatarKey} src={`${API_BASE_URL}/api/users/${currentUser.id}/avatar?v=${avatarKey}`} alt={currentUser.displayName || currentUser.username} />
+                           <AvatarImage src={`${API_BASE_URL}/api/users/${currentUser.id}/avatar?v=${avatarKey}`} alt={currentUser.displayName || currentUser.username} />
                            <AvatarFallback className="bg-primary-foreground/20 text-primary-foreground">
                                {getUserInitials(currentUser.displayName || currentUser.username)}
                            </AvatarFallback>
@@ -489,7 +452,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
                       variant="ghost"
                       className="w-full justify-start gap-3 text-primary-foreground/90 hover:bg-primary-foreground/10 hover:text-primary-foreground"
                       onClick={handleLogout}
-                      disabled={!isClient || !currentUser}
+                      disabled={!currentUser}
                     >
                       <LogOut className="h-5 w-5" />
                       <span>{layoutDict.logout}</span>
@@ -500,13 +463,8 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
             </div>
           </header>
 
-
            <main className="flex-1 overflow-y-auto p-4 md:p-6">
-             {isClient && isAuthHydrated ? children : (
-                   <div className="flex justify-center items-center h-[calc(100vh-56px)]">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
-              )}
+             {children}
           </main>
       </div>
     </div>
