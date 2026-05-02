@@ -1443,7 +1443,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             {isLoadingProjects && displayedProjects.length === 0 ? (
                 [...Array(3)].map((_, i) => (
                     <Card key={`project-list-skel-${i}`} className="opacity-50 border-muted/50 animate-pulse">
-                        <CardHeader className="flex flex-col sm:flex-row items-start justify-between space-y-2 sm:space-y-0 pb-2 p-4 sm:p-6">
+                        <CardHeader className="flex flex-col items-start justify-between space-y-2 sm:space-y-0 pb-2 p-4 sm:p-6">
                             <div className="flex-1 min-w-0"><Skeleton className="h-5 w-3/5 mb-1" /><Skeleton className="h-3 w-4/5" /></div>
                             <div className="flex-shrink-0 mt-2 sm:mt-0"><Skeleton className="h-5 w-20 rounded-full" /></div>
                         </CardHeader>
