@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Version: 2.3.0 - Ultra-Strict Checklist Identification
+ * Version: 2.5.0 - Ultimate Strict Isolation
  */
 
 import * as React from 'react';
@@ -35,7 +35,8 @@ import {
   Circle as CircleIcon,
   Check,
   Clock,
-  RefreshCw
+  RefreshCw,
+  Send
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
@@ -71,6 +72,10 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { format, parseISO } from 'date-fns';
 import { API_BASE_URL } from '@/config/api-config';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { useLanguage } from '@/context/LanguageContext';
+import { getDictionary } from '@/lib/translations';
+import { useAuth } from '@/context/AuthContext';
+import type { Project, UpdateProjectParams, FileEntry, WorkflowHistoryEntry } from '@/types/project-types';
 
 const projectStatuses = [
     'Pending Offer', 'Pending Approval', 'Pending DP Invoice',
@@ -97,29 +102,15 @@ interface GroupedHistoryItem {
     files: FileEntry[];
 }
 
-interface FileEntry {
-    name: string;
-    uploadedBy: string;
-    timestamp: string;
-    path: string;
-}
-
-interface WorkflowHistoryEntry {
-    division: string;
-    action: string;
-    timestamp: string;
-    note?: string;
-}
-
 const finalDocRequirements = ['Dokumen Final', 'Berita Acara', 'SKRD', 'Bukti Pembayaran', 'Ijin Terbit', 'Pelunasan', 'Tanda Terima'];
 
 /**
- * Ultra-Strict Sanitization for Identifiers
+ * Strict Unique Key Generation
+ * This key is used both as a filename prefix and a matching identifier.
  */
 function getUniqueKey(division: string, itemName: string): string {
     const clean = (text: string) => text.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-    // Using a very distinctive separator to prevent partial matching
-    return `chkidx_${clean(division)}_item_${clean(itemName)}_`;
+    return `__REF_${clean(division)}_ITEM_${clean(itemName)}__`;
 }
 
 interface UploadDialogState {
@@ -178,21 +169,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     return filePath.split(/[\\/]/).pop() || '';
   };
 
-  const fetchAllProjects = React.useCallback(async () => {
-    setIsLoadingProjects(true);
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/projects`);
-        if (!response.ok) throw new Error('Failed to fetch projects');
-        const data = await response.json();
-        setAllProjects(data);
-    } catch (error) {
-        console.error("Failed to fetch projects:", error);
-        toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.couldNotLoadProjects });
-    } finally {
-        setIsLoadingProjects(false);
-    }
-  }, [toast, projectsDict]);
-
   const fetchProjectById = React.useCallback(async (id: string): Promise<Project | null> => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/projects/${id}`);
@@ -205,100 +181,104 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   }, []);
 
   React.useEffect(() => {
-    if (allProjects.length > 0) {
-      if (projectIdFromUrl) {
-        const projectToSelect = allProjects.find(p => p.id === projectIdFromUrl);
-        if (projectToSelect) {
-          setSelectedProject(projectToSelect);
-          if (isClient) {
-              setScheduleDate(projectToSelect.scheduleDetails?.date ? parseISO(projectToSelect.scheduleDetails.date) : undefined);
-              setScheduleTime(projectToSelect.scheduleDetails?.time || '');
-              setScheduleLocation(projectToSelect.scheduleDetails?.location || '');
-              setSurveyDate(projectToSelect.surveyDetails?.date ? parseISO(projectToSelect.surveyDetails.date) : undefined);
-              setSurveyTime(projectToSelect.surveyDetails?.time || '');
-              setSurveyDescription(projectToSelect.surveyDetails?.description || '');
-          }
+    if (allProjects.length > 0 && projectIdFromUrl) {
+      const projectToSelect = allProjects.find(p => p.id === projectIdFromUrl);
+      if (projectToSelect) {
+        setSelectedProject(projectToSelect);
+        if (isClient) {
+            setScheduleDate(projectToSelect.scheduleDetails?.date ? parseISO(projectToSelect.scheduleDetails.date) : undefined);
+            setScheduleTime(projectToSelect.scheduleDetails?.time || '');
+            setScheduleLocation(projectToSelect.scheduleDetails?.location || '');
+            setSurveyDate(projectToSelect.surveyDetails?.date ? parseISO(projectToSelect.surveyDetails.date) : undefined);
+            setSurveyTime(projectToSelect.surveyDetails?.time || '');
+            setSurveyDescription(projectToSelect.surveyDetails?.description || '');
         }
       }
     }
   }, [projectIdFromUrl, allProjects, isClient]);
 
-    const getParallelChecklistStatus = React.useCallback((project: Project | null): ParallelUploadChecklist | null => {
-        if (!project) return null;
+  const getParallelChecklistStatus = React.useCallback((project: Project | null): ParallelUploadChecklist | null => {
+    if (!project) return null;
 
-        const isParallelOrRevision = ['Pending Parallel Design Uploads', 'Pending Post-Sidang Revision'].includes(project.status);
-        if (!isParallelOrRevision) return null;
+    const isParallelOrRevision = ['Pending Parallel Design Uploads', 'Pending Post-Sidang Revision'].includes(project.status);
+    if (!isParallelOrRevision) return null;
 
-        const requiredChecklists: ParallelUploadChecklist = {
-            Arsitek: [
-                { name: 'Gambar', uploaded: false, files: [] },
-                { name: 'Daftar Simak', uploaded: false, files: [] },
-                { name: 'SpekTek', uploaded: false, files: [] },
-                { name: 'RAP', uploaded: false, files: [] }
-            ],
-            Struktur: [
-                { name: 'Gambar', uploaded: false, files: [] },
-                { name: 'Analisa Laporan', uploaded: false, files: [] },
-                { name: 'Hammer Test', uploaded: false, files: [] },
-                { name: 'SpekTek', uploaded: false, files: [] },
-                { name: 'Daftar Simak', uploaded: false, files: [] }
-            ],
-            MEP: [
-                { name: 'Gambar', uploaded: false, files: [] },
-                { name: 'Daftar Simak', uploaded: false, files: [] },
-                { name: 'SpekTek', uploaded: false, files: [] },
-                { name: 'RAP', uploaded: false, files: [] },
-                { name: 'Laporan', uploaded: false, files: [] }
-            ],
-        };
-        
-        const currentStatus: ParallelUploadChecklist = {};
-        const projectFiles = project.files || [];
+    const requiredChecklists: ParallelUploadChecklist = {
+        Arsitek: [
+            { name: 'Gambar', uploaded: false, files: [] },
+            { name: 'Daftar Simak', uploaded: false, files: [] },
+            { name: 'SpekTek', uploaded: false, files: [] },
+            { name: 'RAP', uploaded: false, files: [] }
+        ],
+        Struktur: [
+            { name: 'Gambar', uploaded: false, files: [] },
+            { name: 'Analisa Laporan', uploaded: false, files: [] },
+            { name: 'Hammer Test', uploaded: false, files: [] },
+            { name: 'SpekTek', uploaded: false, files: [] },
+            { name: 'Daftar Simak', uploaded: false, files: [] }
+        ],
+        MEP: [
+            { name: 'Gambar', uploaded: false, files: [] },
+            { name: 'Daftar Simak', uploaded: false, files: [] },
+            { name: 'SpekTek', uploaded: false, files: [] },
+            { name: 'RAP', uploaded: false, files: [] },
+            { name: 'Laporan', uploaded: false, files: [] }
+        ],
+    };
+    
+    const currentStatus: ParallelUploadChecklist = {};
+    const projectFiles = project.files || [];
 
-        (Object.keys(requiredChecklists) as (keyof ParallelUploadChecklist)[]).forEach(division => {
-            const checklistItems = requiredChecklists[division];
-            if (checklistItems) {
-                currentStatus[division] = checklistItems.map(item => {
-                    const uniquePrefix = getUniqueKey(division, item.name);
-                    const matchingFiles = projectFiles.filter(file => {
-                        const fileNameOnDisk = getBaseName(file.path);
-                        return fileNameOnDisk.startsWith(uniquePrefix);
-                    });
-
-                    return {
-                        ...item,
-                        uploaded: matchingFiles.length > 0,
-                        files: matchingFiles,
-                    };
+    (Object.keys(requiredChecklists) as (keyof ParallelUploadChecklist)[]).forEach(division => {
+        const checklistItems = requiredChecklists[division];
+        if (checklistItems) {
+            currentStatus[division] = checklistItems.map(item => {
+                const uniquePrefix = getUniqueKey(division, item.name);
+                
+                // ULTRA-STRICT FILTERING:
+                // 1. Path must start with the unique prefix
+                // 2. The role of the uploader MUST match the division of the column
+                const matchingFiles = projectFiles.filter(file => {
+                    const fileNameOnDisk = getBaseName(file.path);
+                    const hasCorrectPrefix = fileNameOnDisk.startsWith(uniquePrefix);
+                    const hasCorrectRole = file.uploadedBy === division;
+                    return hasCorrectPrefix && hasCorrectRole;
                 });
-            }
-        });
-        
-        return currentStatus;
-    }, []);
 
-    React.useEffect(() => {
-        const checklist = getParallelChecklistStatus(selectedProject);
-        setParallelUploadChecklist(checklist);
-    }, [selectedProject, getParallelChecklistStatus]);
-
-    const finalDocsChecklistStatus = React.useMemo(() => {
-        if (!selectedProject || selectedProject.status !== 'Pending Final Documents') return null;
-        const projectFiles = selectedProject.files || [];
-
-        return finalDocRequirements.map(reqName => {
-            const uniquePrefix = getUniqueKey("final", reqName);
-            const matchingFiles = projectFiles.filter(file => {
-                const fileNameOnDisk = getBaseName(file.path);
-                return fileNameOnDisk.startsWith(uniquePrefix);
+                return {
+                    ...item,
+                    uploaded: matchingFiles.length > 0,
+                    files: matchingFiles,
+                };
             });
-            return {
-                name: reqName,
-                uploaded: matchingFiles.length > 0,
-                files: matchingFiles,
-            };
+        }
+    });
+    
+    return currentStatus;
+  }, []);
+
+  React.useEffect(() => {
+    const checklist = getParallelChecklistStatus(selectedProject);
+    setParallelUploadChecklist(checklist);
+  }, [selectedProject, getParallelChecklistStatus]);
+
+  const finalDocsChecklistStatus = React.useMemo(() => {
+    if (!selectedProject || selectedProject.status !== 'Pending Final Documents') return null;
+    const projectFiles = selectedProject.files || [];
+
+    return finalDocRequirements.map(reqName => {
+        const uniquePrefix = getUniqueKey("final", reqName);
+        const matchingFiles = projectFiles.filter(file => {
+            const fileNameOnDisk = getBaseName(file.path);
+            return fileNameOnDisk.startsWith(uniquePrefix);
         });
-    }, [selectedProject]);
+        return {
+            name: reqName,
+            uploaded: matchingFiles.length > 0,
+            files: matchingFiles,
+        };
+    });
+  }, [selectedProject]);
 
   const formatTimestamp = React.useCallback((timestamp: string): string => {
     if (!isClient) return ''; 
@@ -394,7 +374,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             return finalResponse.json();
         }
     }
-};
+  };
 
   const handleProgressSubmit = React.useCallback(async (actionTaken: string = 'submitted', filesToSubmit?: File[], descriptionForSubmit?: string, associatedChecklistItem?: string, divisionForFile?: string) => {
     if (!currentUser || !selectedProject) return;
@@ -405,7 +385,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     try {
         if (currentFiles.length > 0) {
-            // Construct exact identity key
             const uniqueKey = divisionForFile && associatedChecklistItem 
                 ? getUniqueKey(divisionForFile, associatedChecklistItem)
                 : null;
@@ -416,7 +395,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                   userId: currentUser.id,
                   uploaderRole: actingRole || currentUser.roles[0],
                   note: currentDescription,
-                  associatedChecklistItem: uniqueKey, // Sending the strict identity key
+                  associatedChecklistItem: uniqueKey,
                 };
                 await uploadFileWithFormData(file, formDataPayload, (p) => console.log(`Progres ${file.name}: ${p}%`));
             }
@@ -471,108 +450,108 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   }, [currentUser, selectedProject, handleProgressSubmit]);
 
   const roleFilteredProjects = React.useMemo(() => {
-        if (!currentUser || !Array.isArray(currentUser.roles)) return [];
-        const adminRoles = ['Owner', 'Akuntan', 'Admin Proyek', 'Admin Developer'];
-        if (currentUser.roles.some(role => adminRoles.includes(role))) return allProjects;
-        return allProjects.filter(project => {
-            if (['Pending Parallel Design Uploads', 'Pending Post-Sidang Revision'].includes(project.status)) return currentUser.roles.some(role => ['Arsitek', 'Struktur', 'MEP'].includes(role));
-            return currentUser.roles.some(role => role === project.assignedDivision?.trim());
+    if (!currentUser || !Array.isArray(currentUser.roles)) return [];
+    const adminRoles = ['Owner', 'Akuntan', 'Admin Proyek', 'Admin Developer'];
+    if (currentUser.roles.some(role => adminRoles.includes(role))) return allProjects;
+    return allProjects.filter(project => {
+        if (['Pending Parallel Design Uploads', 'Pending Post-Sidang Revision'].includes(project.status)) return currentUser.roles.some(role => ['Arsitek', 'Struktur', 'MEP'].includes(role));
+        return currentUser.roles.some(role => role === project.assignedDivision?.trim());
+    });
+  }, [currentUser, allProjects]);
+
+  React.useEffect(() => {
+    let current = roleFilteredProjects;
+    if (statusFilter.length > 0) current = current.filter(p => statusFilter.includes(p.status));
+    if (searchTerm.trim() !== '') current = current.filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()));
+    setDisplayedProjects(current);
+  }, [searchTerm, statusFilter, roleFilteredProjects]);
+
+  const handleDownloadFile = React.useCallback(async (file: FileEntry) => {
+    setIsDownloading(true);
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/download-file?filePath=${encodeURIComponent(file.path)}`);
+        if (!response.ok) throw new Error('Download gagal');
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = file.name;
+        document.body.appendChild(a); a.click(); a.remove(); window.URL.revokeObjectURL(url);
+        toast({ title: "Unduhan Dimulai" });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: "Kesalahan", description: error.message });
+    } finally {
+        setIsDownloading(false);
+    }
+  }, [toast]);
+
+  const handleDeleteFile = React.useCallback(async (filePath: string, fileName: string) => {
+    if (!selectedProject || !currentUser) return;
+    setIsDeletingFile(filePath);
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/delete-file`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectId: selectedProject.id, filePath, userId: currentUser.id })
         });
-    }, [currentUser, allProjects]);
+        if (!response.ok) throw new Error('Gagal menghapus file');
+        const updated = await fetchProjectById(selectedProject.id);
+        if (updated) { setAllProjects(prev => prev.map(p => p.id === updated.id ? updated : p)); setSelectedProject(updated); }
+        toast({ title: "File Dihapus" });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: "Kesalahan", description: error.message });
+    } finally {
+        setIsDeletingFile(null);
+    }
+  }, [selectedProject, currentUser, toast, fetchProjectById]);
 
-    React.useEffect(() => {
-        let current = roleFilteredProjects;
-        if (statusFilter.length > 0) current = current.filter(p => statusFilter.includes(p.status));
-        if (searchTerm.trim() !== '') current = current.filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()));
-        setDisplayedProjects(current);
-    }, [searchTerm, statusFilter, roleFilteredProjects]);
-
-    const handleDownloadFile = React.useCallback(async (file: FileEntry) => {
-        setIsDownloading(true);
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/download-file?filePath=${encodeURIComponent(file.path)}`);
-            if (!response.ok) throw new Error('Download gagal');
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = file.name;
-            document.body.appendChild(a); a.click(); a.remove(); window.URL.revokeObjectURL(url);
-            toast({ title: "Unduhan Dimulai" });
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: "Kesalahan", description: error.message });
-        } finally {
-            setIsDownloading(false);
-        }
-    }, [toast]);
-
-    const handleDeleteFile = React.useCallback(async (filePath: string, fileName: string) => {
-        if (!selectedProject || !currentUser) return;
-        setIsDeletingFile(filePath);
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/delete-file`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ projectId: selectedProject.id, filePath, userId: currentUser.id })
-            });
-            if (!response.ok) throw new Error('Gagal menghapus file');
-            const updated = await fetchProjectById(selectedProject.id);
-            if (updated) { setAllProjects(prev => prev.map(p => p.id === updated.id ? updated : p)); setSelectedProject(updated); }
-            toast({ title: "File Dihapus" });
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: "Kesalahan", description: error.message });
-        } finally {
-            setIsDeletingFile(null);
-        }
-    }, [selectedProject, currentUser, toast, fetchProjectById]);
-
-    const handleDivisionCompletion = React.useCallback(async () => {
-        if (!selectedProject || !currentUser) return;
-        setIsSubmitting(true);
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/projects/update`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ specialAction: 'markDivisionComplete', projectId: selectedProject.id, updaterRoles: currentUser.roles, updaterUsername: currentUser.username }),
-            });
-            if (!response.ok) throw new Error('Gagal memperbarui status divisi');
-            const updated = await fetchProjectById(selectedProject.id);
-            if (updated) { setAllProjects(prev => prev.map(p => p.id === updated.id ? updated : p)); setSelectedProject(updated); }
-            toast({ title: "Tugas Divisi Selesai" });
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: "Kesalahan", description: error.message });
-        } finally {
-            setIsSubmitting(false);
-        }
-    }, [selectedProject, currentUser, toast, fetchProjectById]);
-
-    const allChecklistItemsUploaded = React.useMemo(() => {
-        if (!parallelUploadChecklist) return false;
-        return Object.values(parallelUploadChecklist).every(divItems => divItems?.every(item => item.uploaded));
-    }, [parallelUploadChecklist]);
-
-    const translateHistoryAction = React.useCallback((action: string): string => {
-        if (!action || !projectsDict.workflowActions) return action || '';
-        let res = action;
-        const createdMatch = action.match(/^(Created Project with workflow|Proyek dibuat dengan alur kerja): (.*)$/i);
-        if (createdMatch) res = (projectsDict.workflowActions.createdProjectWithWorkflow || "Created Project with workflow: {workflowId}").replace('{workflowId}', createdMatch[2]);
-        return res;
-    }, [projectsDict.workflowActions]);
-
-    const groupedAndSortedHistory = React.useMemo(() => {
-        if (!selectedProject) return [];
-        const grouped = new Map<string, GroupedHistoryItem>();
-        (selectedProject.workflowHistory || []).forEach(e => {
-            if (!grouped.has(e.timestamp)) grouped.set(e.timestamp, { timestamp: e.timestamp, entries: [], files: [] });
-            grouped.get(e.timestamp)!.entries.push(e);
+  const handleDivisionCompletion = React.useCallback(async () => {
+    if (!selectedProject || !currentUser) return;
+    setIsSubmitting(true);
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/projects/update`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ specialAction: 'markDivisionComplete', projectId: selectedProject.id, updaterRoles: currentUser.roles, updaterUsername: currentUser.username }),
         });
-        (selectedProject.files || []).forEach(f => {
-            if (!grouped.has(f.timestamp)) grouped.set(f.timestamp, { timestamp: f.timestamp, entries: [], files: [] });
-            grouped.get(f.timestamp)!.files.push(f);
-        });
-        return Array.from(grouped.values()).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    }, [selectedProject]);
+        if (!response.ok) throw new Error('Gagal memperbarui status divisi');
+        const updated = await fetchProjectById(selectedProject.id);
+        if (updated) { setAllProjects(prev => prev.map(p => p.id === updated.id ? updated : p)); setSelectedProject(updated); }
+        toast({ title: "Tugas Divisi Selesai" });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: "Kesalahan", description: error.message });
+    } finally {
+        setIsSubmitting(false);
+    }
+  }, [selectedProject, currentUser, toast, fetchProjectById]);
 
-    const allFinalDocsUploaded = React.useMemo(() => {
-        if (!finalDocsChecklistStatus) return false;
-        return finalDocsChecklistStatus.every(item => item.uploaded);
-    }, [finalDocsChecklistStatus]);
+  const allChecklistItemsUploaded = React.useMemo(() => {
+    if (!parallelUploadChecklist) return false;
+    return Object.values(parallelUploadChecklist).every(divItems => divItems?.every(item => item.uploaded));
+  }, [parallelUploadChecklist]);
+
+  const translateHistoryAction = React.useCallback((action: string): string => {
+    if (!action || !projectsDict.workflowActions) return action || '';
+    let res = action;
+    const createdMatch = action.match(/^(Created Project with workflow|Proyek dibuat dengan alur kerja): (.*)$/i);
+    if (createdMatch) res = (projectsDict.workflowActions.createdProjectWithWorkflow || "Created Project with workflow: {workflowId}").replace('{workflowId}', createdMatch[2]);
+    return res;
+  }, [projectsDict.workflowActions]);
+
+  const groupedAndSortedHistory = React.useMemo(() => {
+    if (!selectedProject) return [];
+    const grouped = new Map<string, GroupedHistoryItem>();
+    (selectedProject.workflowHistory || []).forEach(e => {
+        if (!grouped.has(e.timestamp)) grouped.set(e.timestamp, { timestamp: e.timestamp, entries: [], files: [] });
+        grouped.get(e.timestamp)!.entries.push(e);
+    });
+    (selectedProject.files || []).forEach(f => {
+        if (!grouped.has(f.timestamp)) grouped.set(f.timestamp, { timestamp: f.timestamp, entries: [], files: [] });
+        grouped.get(f.timestamp)!.files.push(f);
+    });
+    return Array.from(grouped.values()).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [selectedProject]);
+
+  const allFinalDocsUploaded = React.useMemo(() => {
+    if (!finalDocsChecklistStatus) return false;
+    return finalDocsChecklistStatus.every(item => item.uploaded);
+  }, [finalDocsChecklistStatus]);
 
   if (!isClient) return null;
 
@@ -615,119 +594,122 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   );
 
   const renderChecklistItem = (item: ChecklistItem, division: string) => {
-      const canAdminDelete = currentUser?.roles.some(r => ['Admin Proyek', 'Owner', 'Admin Developer'].includes(r));
-      return (
-        <li key={`${division}-${item.name}`} className="flex text-sm p-2 border rounded-md gap-2 flex-col items-start">
-          <div className="flex justify-between items-center w-full">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              {item.uploaded ? <CheckCircle className="h-4 w-4 text-green-500" /> : <CircleIcon className="h-4 w-4 text-muted-foreground" />}
-              <span className={cn("truncate font-medium", item.uploaded ? "text-foreground" : "text-muted-foreground")}>{item.name}</span>
-            </div>
-            {currentUser?.roles.includes(division) && (
-                <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setUploadDialogState({ isOpen: true, item, division })} disabled={isSubmitting}><Upload className="h-3 w-3" /></Button>
-            )}
+    // Only users with Admin roles OR the division itself can delete files.
+    const canAdminDelete = currentUser?.roles.some(r => ['Admin Proyek', 'Owner', 'Admin Developer'].includes(r));
+    
+    return (
+      <li key={`${division}-${item.name}`} className="flex text-sm p-2 border rounded-md gap-2 flex-col items-start">
+        <div className="flex justify-between items-center w-full">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {item.uploaded ? <CheckCircle className="h-4 w-4 text-green-500" /> : <CircleIcon className="h-4 w-4 text-muted-foreground" />}
+            <span className={cn("truncate font-medium", item.uploaded ? "text-foreground" : "text-muted-foreground")}>{item.name}</span>
           </div>
-          {item.files.length > 0 && (
-            <ul className="pl-6 pt-1 space-y-1 w-full border-t mt-1">
-              {item.files.map(file => (
-                  <li key={file.path} className="flex justify-between items-center text-xs text-muted-foreground hover:text-foreground">
-                    <span className="truncate pr-2">{file.name}</span>
-                    <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => handleDownloadFile(file)} className="h-6 w-6" disabled={isDownloading}><Download className="h-3 w-3 text-primary" /></Button>
-                        {(canAdminDelete || currentUser?.roles.includes(file.uploadedBy || '')) && (
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteFile(file.path, file.name)} className="h-6 w-6" disabled={!!isDeletingFile}><Trash2 className="h-3 w-3 text-destructive" /></Button>
-                        )}
-                    </div>
-                  </li>
-              ))}
-            </ul>
+          {currentUser?.roles.includes(division) && (
+              <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setUploadDialogState({ isOpen: true, item, division })} disabled={isSubmitting}><Upload className="h-3 w-3" /></Button>
           )}
-        </li>
-      );
+        </div>
+        {item.files.length > 0 && (
+          <ul className="pl-6 pt-1 space-y-1 w-full border-t mt-1">
+            {item.files.map(file => (
+                <li key={file.path} className="flex justify-between items-center text-xs text-muted-foreground hover:text-foreground">
+                  <span className="truncate pr-2">{file.name}</span>
+                  <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => handleDownloadFile(file)} className="h-6 w-6" disabled={isDownloading}><Download className="h-3 w-3 text-primary" /></Button>
+                      {/* ISOLATED DELETE PERMISSION: Only uploader's division or admin can delete */}
+                      {(canAdminDelete || currentUser?.roles.includes(division)) && (
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteFile(file.path, file.name)} className="h-6 w-6" disabled={!!isDeletingFile}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                      )}
+                  </div>
+                </li>
+            ))}
+          </ul>
+        )}
+      </li>
+    );
   };
 
   const renderSelectedProjectDetail = (project: Project) => {
-       return (
-           <>
-                <Button variant="outline" onClick={() => {setSelectedProject(null); router.push('/dashboard/projects', { scroll: false });}} className="mb-4 w-full sm:w-auto"><ArrowLeft className="mr-2 h-4 w-4" />{projectsDict.backToList}</Button>
-                <Card className="shadow-md mb-6">
-                   <CardHeader className="p-4 sm:p-6">
-                     <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-                        <div className="flex-1 min-w-0"><CardTitle className="text-xl md:text-2xl">{project.title}</CardTitle><CardDescription className="mt-1">{projectsDict.statusLabel}: {getStatusBadge(project.status)}</CardDescription></div>
-                        <div className="text-left md:text-right w-full md:w-auto"><div className="text-sm font-medium">{projectsDict.progressLabel}</div><div className="flex items-center gap-2 mt-1"><Progress value={project.progress} className="w-full md:w-32 h-2" /><span className="text-xs text-muted-foreground font-medium">{project.progress}%</span></div></div>
-                     </div>
-                   </CardHeader>
-                </Card>
+    return (
+        <>
+            <Button variant="outline" onClick={() => {setSelectedProject(null); router.push('/dashboard/projects', { scroll: false });}} className="mb-4 w-full sm:w-auto"><ArrowLeft className="mr-2 h-4 w-4" />{projectsDict.backToList}</Button>
+            <Card className="shadow-md mb-6">
+                <CardHeader className="p-4 sm:p-6">
+                  <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+                    <div className="flex-1 min-w-0"><CardTitle className="text-xl md:text-2xl">{project.title}</CardTitle><CardDescription className="mt-1">{projectsDict.statusLabel}: {getStatusBadge(project.status)}</CardDescription></div>
+                    <div className="text-left md:text-right w-full md:w-auto"><div className="text-sm font-medium">{projectsDict.progressLabel}</div><div className="flex items-center gap-2 mt-1"><Progress value={project.progress} className="w-full md:w-32 h-2" /><span className="text-xs text-muted-foreground font-medium">{project.progress}%</span></div></div>
+                  </div>
+                </CardHeader>
+            </Card>
 
-                {(project.status === 'Pending Parallel Design Uploads' || project.status === 'Pending Post-Sidang Revision') && parallelUploadChecklist && (
-                    <Card className="mb-6 shadow-md">
-                        <CardHeader className="p-4 sm:p-6"><CardTitle>{projectsDict.fileChecklist.title}</CardTitle></CardHeader>
-                        <CardContent className="p-4 sm:p-6 pt-0 grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {(Object.entries(parallelUploadChecklist)).map(([division, items]) => (
-                                <div key={division}>
-                                    <div className="flex justify-between items-center mb-2"><h4 className="font-semibold">{getTranslatedStatus(division)}</h4>
-                                        {currentUser?.roles.includes(division) && (<Button size="sm" variant="outline" onClick={handleDivisionCompletion} disabled={isSubmitting || project.parallelUploadsCompletedBy?.includes(division)}>{project.parallelUploadsCompletedBy?.includes(division) ? <Check className="mr-2 h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />}{project.parallelUploadsCompletedBy?.includes(division) ? "Selesai" : "Tandai Selesai"}</Button>)}
-                                    </div>
-                                    <ul className="space-y-2">{items?.map(item => renderChecklistItem(item, division))}</ul>
+            {(project.status === 'Pending Parallel Design Uploads' || project.status === 'Pending Post-Sidang Revision') && parallelUploadChecklist && (
+                <Card className="mb-6 shadow-md">
+                    <CardHeader className="p-4 sm:p-6"><CardTitle>{projectsDict.fileChecklist.title}</CardTitle></CardHeader>
+                    <CardContent className="p-4 sm:p-6 pt-0 grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {(Object.entries(parallelUploadChecklist)).map(([division, items]) => (
+                            <div key={division}>
+                                <div className="flex justify-between items-center mb-2"><h4 className="font-semibold">{getTranslatedStatus(division)}</h4>
+                                    {currentUser?.roles.includes(division) && (<Button size="sm" variant="outline" onClick={handleDivisionCompletion} disabled={isSubmitting || project.parallelUploadsCompletedBy?.includes(division)}>{project.parallelUploadsCompletedBy?.includes(division) ? <Check className="mr-2 h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />}{project.parallelUploadsCompletedBy?.includes(division) ? "Selesai" : "Tandai Selesai"}</Button>)}
                                 </div>
-                            ))}
-                        </CardContent>
-                         {currentUser?.roles.includes('Admin Proyek') && project.status === 'Pending Parallel Design Uploads' && (<CardFooter className="p-4 sm:p-6 pt-0"><Button onClick={() => handleProgressSubmit('all_files_confirmed')} disabled={isSubmitting || !allChecklistItemsUploaded} className="w-full sm:w-auto accent-teal"><CheckCircle className="mr-2 h-4 w-4" />Konfirmasi Semua Desain</Button></CardFooter>)}
-                    </Card>
-                )}
-
-                 <Card className="mb-6 shadow-md">
-                    <CardHeader className="p-4 sm:p-6"><CardTitle>{projectsDict.workflowHistoryTitle}</CardTitle></CardHeader>
-                    <CardContent className="p-4 sm:p-6 pt-0">
-                        <Accordion type="single" collapsible className="w-full">
-                             {groupedAndSortedHistory.map((group, index) => (
-                                <AccordionItem value={`item-${index}`} key={group.timestamp}>
-                                    <AccordionTrigger disabled={group.files.length === 0}>
-                                        <div className="flex items-start gap-3 flex-1 text-left">
-                                            <div className={`mt-1 h-3 w-3 rounded-full flex-shrink-0 ${index === 0 ? 'bg-primary animate-pulse' : 'bg-muted'}`}></div>
-                                            <div>{group.entries.map((e, ei) => (<p key={ei} className="text-sm font-medium">{translateHistoryAction(e.action)}</p>))}<p className="text-xs text-muted-foreground" suppressHydrationWarning>{formatTimestamp(group.timestamp)}</p></div>
-                                        </div>
-                                    </AccordionTrigger>
-                                    <AccordionContent>
-                                        <ul className="pl-6 pt-2 space-y-2">
-                                            {group.files.map((file, fi) => (<li key={fi} className="flex items-center justify-between p-2 border rounded-md hover:bg-muted gap-2"><div className="flex items-center gap-2 min-w-0"><FileText className="h-4 w-4 text-primary flex-shrink-0" /><span className="text-sm truncate">{file.name}</span></div><Button variant="ghost" size="icon" onClick={() => handleDownloadFile(file)} className="h-7 w-7" disabled={isDownloading}><Download className="h-4 w-4 text-primary" /></Button></li>))}
-                                        </ul>
-                                    </AccordionContent>
-                                </AccordionItem>
-                             ))}
-                        </Accordion>
+                                <ul className="space-y-2">{items?.map(item => renderChecklistItem(item, division))}</ul>
+                            </div>
+                        ))}
                     </CardContent>
+                      {currentUser?.roles.includes('Admin Proyek') && project.status === 'Pending Parallel Design Uploads' && (<CardFooter className="p-4 sm:p-6 pt-0"><Button onClick={() => handleProgressSubmit('all_files_confirmed')} disabled={isSubmitting || !allChecklistItemsUploaded} className="w-full sm:w-auto accent-teal"><CheckCircle className="mr-2 h-4 w-4" />Konfirmasi Semua Desain</Button></CardFooter>)}
                 </Card>
+            )}
 
-                {project.status === 'Pending Final Documents' && finalDocsChecklistStatus && (
-                    <Card className="mb-6 shadow-md border-primary/20">
-                        <CardHeader className="p-4 sm:p-6"><CardTitle>Unggah Dokumen Akhir</CardTitle></CardHeader>
-                        <CardContent className="p-4 sm:p-6 pt-0 space-y-4"><ul className="space-y-2">{finalDocsChecklistStatus.map((item) => (
-                             <li key={`final-${item.name}`} className="flex text-sm p-2 border rounded-md gap-2 flex-col items-start">
-                               <div className="flex justify-between items-center w-full">
-                                 <div className="flex items-center gap-2 flex-1 min-w-0">{item.uploaded ? <CheckCircle className="h-4 w-4 text-green-500" /> : <CircleIcon className="h-4 w-4 text-muted-foreground" />}<span className={cn("truncate", item.uploaded ? "text-foreground font-medium" : "text-muted-foreground")}>{item.name}</span></div>
-                                 {(currentUser?.roles.some(r => ['Admin Proyek', 'Owner', 'Akuntan', 'Admin Developer'].includes(r))) && (<Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setUploadDialogState({ isOpen: true, item, division: 'final' })} disabled={isSubmitting}><Upload className="h-3 w-3" /></Button>)}
-                               </div>
-                               {item.files.length > 0 && (<ul className="pl-6 pt-1 space-y-1 w-full border-t mt-1">{item.files.map(f => (<li key={f.path} className="flex justify-between items-center text-xs"><span className="truncate pr-2">{f.name}</span><div className="flex items-center gap-1"><Button variant="ghost" size="icon" onClick={() => handleDownloadFile(f)} className="h-6 w-6" disabled={isDownloading}><Download className="h-3 w-3 text-primary" /></Button><Button variant="ghost" size="icon" onClick={() => handleDeleteFile(f.path, f.name)} className="h-6 w-6" disabled={!!isDeletingFile}><Trash2 className="h-3 w-3 text-destructive" /></Button></div></li>))}</ul>)}
-                             </li>
-                        ))}</ul></CardContent>
-                        {currentUser?.roles.includes('Admin Proyek') && (<CardFooter className="p-4 sm:p-6 border-t"><Button onClick={() => handleDecision('completed')} disabled={isSubmitting || !allFinalDocsUploaded} className="w-full sm:w-auto accent-teal"><CheckCircle className="mr-2 h-4 w-4" />Selesaikan Proyek</Button></CardFooter>)}
-                    </Card>
-                )}
+              <Card className="mb-6 shadow-md">
+                <CardHeader className="p-4 sm:p-6"><CardTitle>{projectsDict.workflowHistoryTitle}</CardTitle></CardHeader>
+                <CardContent className="p-4 sm:p-6 pt-0">
+                    <Accordion type="single" collapsible className="w-full">
+                          {groupedAndSortedHistory.map((group, index) => (
+                            <AccordionItem value={`item-${index}`} key={group.timestamp}>
+                                <AccordionTrigger disabled={group.files.length === 0}>
+                                    <div className="flex items-start gap-3 flex-1 text-left">
+                                        <div className={`mt-1 h-3 w-3 rounded-full flex-shrink-0 ${index === 0 ? 'bg-primary animate-pulse' : 'bg-muted'}`}></div>
+                                        <div>{group.entries.map((e, ei) => (<p key={ei} className="text-sm font-medium">{translateHistoryAction(e.action)}</p>))}<p className="text-xs text-muted-foreground" suppressHydrationWarning>{formatTimestamp(group.timestamp)}</p></div>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent>
+                                    <ul className="pl-6 pt-2 space-y-2">
+                                        {group.files.map((file, fi) => (<li key={fi} className="flex items-center justify-between p-2 border rounded-md hover:bg-muted gap-2"><div className="flex items-center gap-2 min-w-0"><FileText className="h-4 w-4 text-primary flex-shrink-0" /><span className="text-sm truncate">{file.name}</span></div><Button variant="ghost" size="icon" onClick={() => handleDownloadFile(file)} className="h-7 w-7" disabled={isDownloading}><Download className="h-4 w-4 text-primary" /></Button></li>))}
+                                    </ul>
+                                </AccordionContent>
+                            </AccordionItem>
+                          ))}
+                    </Accordion>
+                </CardContent>
+            </Card>
 
-                <Dialog open={uploadDialogState.isOpen} onOpenChange={o => { if (!isSubmitting) setUploadDialogState(s => ({ ...s, isOpen: o })); }}>
-                    <DialogContent>
-                        <DialogHeader><DialogTitle>Unggah: {uploadDialogState.item?.name}</DialogTitle></DialogHeader>
-                        <div className="space-y-4 py-4">
-                          <Textarea placeholder="Catatan (opsional)..." value={description} onChange={e => setDescription(e.target.value)} disabled={isSubmitting}/>
-                          <Input type="file" multiple onChange={(e) => { if (e.target.files) setUploadedFiles(Array.from(e.target.files)); }} disabled={isSubmitting} />
-                          {uploadedFiles.length > 0 && (<div className="space-y-1 rounded-md border p-2">{uploadedFiles.map((f, i) => (<div key={i} className="flex justify-between items-center text-xs p-1"><span>{f.name}</span><Button variant="ghost" size="sm" onClick={() => removeFile(i)} className="h-6 w-6" disabled={isSubmitting}><Trash2 className="h-3 w-3 text-destructive" /></Button></div>))}</div>)}
-                        </div>
-                        <DialogFooter><Button variant="outline" onClick={() => { setUploadDialogState({ isOpen: false, item: null, division: null }); setUploadedFiles([]); setDescription(''); }} disabled={isSubmitting}>Batal</Button><Button onClick={() => handleProgressSubmit('submitted', uploadedFiles, description, uploadDialogState.item?.name, uploadDialogState.division || undefined)} disabled={isSubmitting || uploadedFiles.length === 0}>{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Unggah</Button></DialogFooter>
-                    </DialogContent>
-                </Dialog>
-           </>
-       );
+            {project.status === 'Pending Final Documents' && finalDocsChecklistStatus && (
+                <Card className="mb-6 shadow-md border-primary/20">
+                    <CardHeader className="p-4 sm:p-6"><CardTitle>Unggah Dokumen Akhir</CardTitle></CardHeader>
+                    <CardContent className="p-4 sm:p-6 pt-0 space-y-4"><ul className="space-y-2">{finalDocsChecklistStatus.map((item) => (
+                          <li key={`final-${item.name}`} className="flex text-sm p-2 border rounded-md gap-2 flex-col items-start">
+                            <div className="flex justify-between items-center w-full">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">{item.uploaded ? <CheckCircle className="h-4 w-4 text-green-500" /> : <CircleIcon className="h-4 w-4 text-muted-foreground" />}<span className={cn("truncate", item.uploaded ? "text-foreground font-medium" : "text-muted-foreground")}>{item.name}</span></div>
+                              {(currentUser?.roles.some(r => ['Admin Proyek', 'Owner', 'Akuntan', 'Admin Developer'].includes(r))) && (<Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setUploadDialogState({ isOpen: true, item, division: 'final' })} disabled={isSubmitting}><Upload className="h-3 w-3" /></Button>)}
+                            </div>
+                            {item.files.length > 0 && (<ul className="pl-6 pt-1 space-y-1 w-full border-t mt-1">{item.files.map(f => (<li key={f.path} className="flex justify-between items-center text-xs"><span className="truncate pr-2">{f.name}</span><div className="flex items-center gap-1"><Button variant="ghost" size="icon" onClick={() => handleDownloadFile(f)} className="h-6 w-6" disabled={isDownloading}><Download className="h-3 w-3 text-primary" /></Button><Button variant="ghost" size="icon" onClick={() => handleDeleteFile(f.path, f.name)} className="h-6 w-6" disabled={!!isDeletingFile}><Trash2 className="h-3 w-3 text-destructive" /></Button></div></li>))}</ul>)}
+                          </li>
+                    ))}</ul></CardContent>
+                    {currentUser?.roles.includes('Admin Proyek') && (<CardFooter className="p-4 sm:p-6 border-t"><Button onClick={() => handleDecision('completed')} disabled={isSubmitting || !allFinalDocsUploaded} className="w-full sm:w-auto accent-teal"><CheckCircle className="mr-2 h-4 w-4" />Selesaikan Proyek</Button></CardFooter>)}
+                </Card>
+            )}
+
+            <Dialog open={uploadDialogState.isOpen} onOpenChange={o => { if (!isSubmitting) setUploadDialogState(s => ({ ...s, isOpen: o })); }}>
+                <DialogContent>
+                    <DialogHeader><DialogTitle>Unggah: {uploadDialogState.item?.name}</DialogTitle></DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <Textarea placeholder="Catatan (opsional)..." value={description} onChange={e => setDescription(e.target.value)} disabled={isSubmitting}/>
+                      <Input type="file" multiple onChange={(e) => { if (e.target.files) setUploadedFiles(Array.from(e.target.files)); }} disabled={isSubmitting} />
+                      {uploadedFiles.length > 0 && (<div className="space-y-1 rounded-md border p-2">{uploadedFiles.map((f, i) => (<div key={i} className="flex justify-between items-center text-xs p-1"><span>{f.name}</span><Button variant="ghost" size="sm" onClick={() => removeFile(i)} className="h-6 w-6" disabled={isSubmitting}><Trash2 className="h-3 w-3 text-destructive" /></Button></div>))}</div>)}
+                    </div>
+                    <DialogFooter><Button variant="outline" onClick={() => { setUploadDialogState({ isOpen: false, item: null, division: null }); setUploadedFiles([]); setDescription(''); }} disabled={isSubmitting}>Batal</Button><Button onClick={() => handleProgressSubmit('submitted', uploadedFiles, description, uploadDialogState.item?.name, uploadDialogState.division || undefined)} disabled={isSubmitting || uploadedFiles.length === 0}>{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Unggah</Button></DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
   }
 
   return (
@@ -736,8 +718,3 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     </div>
   );
 }
-
-import { useLanguage } from '@/context/LanguageContext';
-import { getDictionary } from '@/lib/translations';
-import { useAuth } from '@/context/AuthContext';
-import type { Project } from '@/types/project-types';
