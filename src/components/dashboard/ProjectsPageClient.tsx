@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Version: 2.2.0 - Strict Checklist Matching (No broad fallback)
+ * Version: 2.3.0 - Ultra-Strict Checklist Identification
  */
 
 import * as React from 'react';
@@ -33,9 +33,7 @@ import {
   MapPin,
   Shield,
   Circle as CircleIcon,
-  Wrench,
   Check,
-  CalendarIcon,
   Clock,
   RefreshCw
 } from 'lucide-react';
@@ -62,27 +60,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { useLanguage } from '@/context/LanguageContext';
-import { getDictionary } from '@/lib/translations';
-import { useAuth } from '@/context/AuthContext';
-import type { Project, WorkflowHistoryEntry, FileEntry, UpdateProjectParams } from '@/types/project-types';
-import {
-    DropdownMenu,
-    DropdownMenuCheckboxItem,
-    DropdownMenuContent,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from '@/lib/utils';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { format, parseISO } from 'date-fns';
-import { id as IndonesianLocale, enUS as EnglishLocale } from 'date-fns/locale';
 import { API_BASE_URL } from '@/config/api-config';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
 const projectStatuses = [
     'Pending Offer', 'Pending Approval', 'Pending DP Invoice',
@@ -109,17 +97,29 @@ interface GroupedHistoryItem {
     files: FileEntry[];
 }
 
+interface FileEntry {
+    name: string;
+    uploadedBy: string;
+    timestamp: string;
+    path: string;
+}
+
+interface WorkflowHistoryEntry {
+    division: string;
+    action: string;
+    timestamp: string;
+    note?: string;
+}
+
 const finalDocRequirements = ['Dokumen Final', 'Berita Acara', 'SKRD', 'Bukti Pembayaran', 'Ijin Terbit', 'Pelunasan', 'Tanda Terima'];
 
 /**
- * Strict Sanitization - MUST match server-side sanitizeForPath exactly.
+ * Ultra-Strict Sanitization for Identifiers
  */
-function safeSanitize(text: string): string {
-    return text.toLowerCase()
-        .trim()
-        .replace(/[\s-]+/g, '_')
-        .replace(/[^a-z0-9_]/g, '')
-        .replace(/_+/g, '_');
+function getUniqueKey(division: string, itemName: string): string {
+    const clean = (text: string) => text.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+    // Using a very distinctive separator to prevent partial matching
+    return `chkidx_${clean(division)}_item_${clean(itemName)}_`;
 }
 
 interface UploadDialogState {
@@ -193,12 +193,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     }
   }, [toast, projectsDict]);
 
-  React.useEffect(() => {
-    const handleDataRefresh = () => fetchAllProjects();
-    window.addEventListener('refresh-data', handleDataRefresh);
-    return () => window.removeEventListener('refresh-data', handleDataRefresh);
-  }, [fetchAllProjects]);
-
   const fetchProjectById = React.useCallback(async (id: string): Promise<Project | null> => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/projects/${id}`);
@@ -224,15 +218,10 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
               setSurveyTime(projectToSelect.surveyDetails?.time || '');
               setSurveyDescription(projectToSelect.surveyDetails?.description || '');
           }
-        } else {
-          toast({ variant: 'destructive', title: projectsDict.toast.error, description: projectsDict.toast.projectNotFound });
-          router.replace('/dashboard/projects', { scroll: false });
         }
-      } else {
-        setSelectedProject(null);
       }
     }
-  }, [projectIdFromUrl, allProjects, router, toast, projectsDict, isClient]);
+  }, [projectIdFromUrl, allProjects, isClient]);
 
     const getParallelChecklistStatus = React.useCallback((project: Project | null): ParallelUploadChecklist | null => {
         if (!project) return null;
@@ -270,14 +259,10 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             const checklistItems = requiredChecklists[division];
             if (checklistItems) {
                 currentStatus[division] = checklistItems.map(item => {
-                    // Strict prefix: e.g. "arsitek_gambar_"
-                    const prefix = safeSanitize(division + "_" + item.name) + "_";
-                    
+                    const uniquePrefix = getUniqueKey(division, item.name);
                     const matchingFiles = projectFiles.filter(file => {
                         const fileNameOnDisk = getBaseName(file.path);
-                        // Rule: Only match if it has the strict division-based prefix
-                        // This prevents "leakage" where common names like "Gambar" match all columns.
-                        return fileNameOnDisk.startsWith(prefix);
+                        return fileNameOnDisk.startsWith(uniquePrefix);
                     });
 
                     return {
@@ -302,10 +287,10 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         const projectFiles = selectedProject.files || [];
 
         return finalDocRequirements.map(reqName => {
-            const prefix = safeSanitize("final_" + reqName) + "_";
+            const uniquePrefix = getUniqueKey("final", reqName);
             const matchingFiles = projectFiles.filter(file => {
                 const fileNameOnDisk = getBaseName(file.path);
-                return fileNameOnDisk.startsWith(prefix);
+                return fileNameOnDisk.startsWith(uniquePrefix);
             });
             return {
                 name: reqName,
@@ -420,10 +405,10 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     try {
         if (currentFiles.length > 0) {
-            let finalAssociatedItem = associatedChecklistItem;
-            if (divisionForFile && associatedChecklistItem) {
-                finalAssociatedItem = `${divisionForFile}_${associatedChecklistItem}`;
-            }
+            // Construct exact identity key
+            const uniqueKey = divisionForFile && associatedChecklistItem 
+                ? getUniqueKey(divisionForFile, associatedChecklistItem)
+                : null;
 
             for (const file of currentFiles) {
                 const formDataPayload: Record<string, string | null> = {
@@ -431,7 +416,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                   userId: currentUser.id,
                   uploaderRole: actingRole || currentUser.roles[0],
                   note: currentDescription,
-                  associatedChecklistItem: finalAssociatedItem || null,
+                  associatedChecklistItem: uniqueKey, // Sending the strict identity key
                 };
                 await uploadFileWithFormData(file, formDataPayload, (p) => console.log(`Progres ${file.name}: ${p}%`));
             }
@@ -721,7 +706,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                              <li key={`final-${item.name}`} className="flex text-sm p-2 border rounded-md gap-2 flex-col items-start">
                                <div className="flex justify-between items-center w-full">
                                  <div className="flex items-center gap-2 flex-1 min-w-0">{item.uploaded ? <CheckCircle className="h-4 w-4 text-green-500" /> : <CircleIcon className="h-4 w-4 text-muted-foreground" />}<span className={cn("truncate", item.uploaded ? "text-foreground font-medium" : "text-muted-foreground")}>{item.name}</span></div>
-                                 {(currentUser?.roles.some(r => ['Admin Proyek', 'Owner', 'Akuntan'].includes(r))) && (<Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setUploadDialogState({ isOpen: true, item, division: 'final' })} disabled={isSubmitting}><Upload className="h-3 w-3" /></Button>)}
+                                 {(currentUser?.roles.some(r => ['Admin Proyek', 'Owner', 'Akuntan', 'Admin Developer'].includes(r))) && (<Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setUploadDialogState({ isOpen: true, item, division: 'final' })} disabled={isSubmitting}><Upload className="h-3 w-3" /></Button>)}
                                </div>
                                {item.files.length > 0 && (<ul className="pl-6 pt-1 space-y-1 w-full border-t mt-1">{item.files.map(f => (<li key={f.path} className="flex justify-between items-center text-xs"><span className="truncate pr-2">{f.name}</span><div className="flex items-center gap-1"><Button variant="ghost" size="icon" onClick={() => handleDownloadFile(f)} className="h-6 w-6" disabled={isDownloading}><Download className="h-3 w-3 text-primary" /></Button><Button variant="ghost" size="icon" onClick={() => handleDeleteFile(f.path, f.name)} className="h-6 w-6" disabled={!!isDeletingFile}><Trash2 className="h-3 w-3 text-destructive" /></Button></div></li>))}</ul>)}
                              </li>
@@ -751,3 +736,8 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     </div>
   );
 }
+
+import { useLanguage } from '@/context/LanguageContext';
+import { getDictionary } from '@/lib/translations';
+import { useAuth } from '@/context/AuthContext';
+import type { Project } from '@/types/project-types';

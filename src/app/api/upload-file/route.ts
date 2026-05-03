@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stat, mkdir, rename } from 'fs/promises';
 import path from 'path';
-import { sanitizeForPath } from '@/lib/path-utils';
 import { addFilesToProject } from '@/services/project-service';
 
 export const maxDuration = 300;
@@ -31,7 +30,7 @@ export async function POST(req: NextRequest) {
         userId, 
         uploaderRole, 
         note, 
-        associatedChecklistItem,
+        associatedChecklistItem, // Now receiving the uniqueKey: chkidx_...
         tempPath,
         originalFilename
     } = body;
@@ -40,34 +39,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Missing required finalization data.' }, { status: 400 });
     }
 
-    // Generate strict prefix using the same utility as the client matching logic
-    // associatedChecklistItem will be e.g. "Arsitek_Gambar" or "final_Berita Acara"
-    const prefix = associatedChecklistItem 
-      ? sanitizeForPath(associatedChecklistItem) + "_" 
-      : "";
+    // Identify the prefix strictly
+    // associatedChecklistItem is already the Unique Key from the frontend
+    const prefix = associatedChecklistItem ? `${associatedChecklistItem}` : "";
     
-    // Sanitize the actual filename too
+    // Sanitize the original filename for storage safely
     const ext = path.extname(originalFilename);
-    const base = path.basename(originalFilename, ext);
-    const safeOriginalName = sanitizeForPath(base) + ext.toLowerCase();
+    const base = path.basename(originalFilename, ext).toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const safeOriginalName = base + ext.toLowerCase();
 
-    const safeFilenameForPath = `${prefix}${safeOriginalName || `file_${Date.now()}`}`;
+    // The final filename will ALWAYS start with the unique identity key
+    const finalFilenameOnDisk = `${prefix}${safeOriginalName}`;
 
     const projectSpecificDir = path.join(PROJECT_FILES_BASE_DIR, projectId);
     await ensureDirectoryExists(projectSpecificDir);
 
     const tempFilePath = path.join(UPLOAD_TEMP_DIR, path.basename(tempPath));
-    const finalFilePath = path.join(projectSpecificDir, safeFilenameForPath);
+    const finalFilePath = path.join(projectSpecificDir, finalFilenameOnDisk);
     
     await rename(tempFilePath, finalFilePath);
 
-    const relativePath = `${projectId}/${safeFilenameForPath}`.replace(/\\/g, '/');
-    const historyNote = `File diunggah untuk item: "${associatedChecklistItem || 'Umum'}". ${note ? `Catatan: ${note}`: ''}`;
+    const relativePath = `${projectId}/${finalFilenameOnDisk}`.replace(/\\/g, '/');
+    const historyNote = `File diunggah untuk item checklist. ${note ? `Catatan: ${note}`: ''}`;
     
     const fileEntry = {
       name: originalFilename,
       path: relativePath,
-      uploadedBy: uploaderRole, // This is important for secondary filtering
+      uploadedBy: uploaderRole,
     };
     
     await addFilesToProject(projectId, [fileEntry], userId, historyNote);
