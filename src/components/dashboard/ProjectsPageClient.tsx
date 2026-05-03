@@ -103,7 +103,7 @@ const finalDocRequirements = ['Dokumen Final', 'Berita Acara', 'SKRD', 'Bukti Pe
 
 /**
  * TRIPLE UNDERSCORE IDENTITY KEY
- * This is the most secure way to prevent overlap between divisions.
+ * Produces a sanitized, unique string that connects a division and a checklist item.
  */
 function getUniqueKey(division: string, itemName: string): string {
     const clean = (text: string) => text.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
@@ -128,12 +128,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   const router = useRouter();
 
   const [hasMounted, setHasMounted] = React.useState(false);
-  React.useEffect(() => { setHasMounted(true); }, []);
-
-  const dict = React.useMemo(() => getDictionary(language), [language]);
-  const projectsDict = React.useMemo(() => dict.projectsPage, [dict]);
-  const dashboardDict = React.useMemo(() => dict.dashboardPage, [dict]);
-
+  
   const [allProjects, setAllProjects] = React.useState<Project[]>(initialProjects);
   const [selectedProject, setSelectedProject] = React.useState<Project | null>(null);
 
@@ -160,6 +155,14 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   const [uploadDialogState, setUploadDialogState] = React.useState<UploadDialogState>({ isOpen: false, item: null, division: null });
 
   const projectIdFromUrl = searchParams.get('projectId');
+
+  React.useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  const dict = React.useMemo(() => getDictionary(language), [language]);
+  const projectsDict = React.useMemo(() => dict.projectsPage, [dict]);
+  const dashboardDict = React.useMemo(() => dict.dashboardPage, [dict]);
 
   const getBaseName = (filePath: string) => {
     return filePath.split(/[\\/]/).pop() || '';
@@ -229,8 +232,8 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             currentStatus[division] = checklistItems.map(item => {
                 const uniquePrefix = getUniqueKey(division, item.name);
                 
-                // ABSOLUTE ISOLATION:
-                // We match strictly by the triple-underscore prefix in the filename.
+                // ABSOLUTE ISOLATION MATCHING:
+                // Check if the filename starts with the exact division_item prefix.
                 const matchingFiles = projectFiles.filter(file => {
                     const fileNameOnDisk = getBaseName(file.path);
                     return fileNameOnDisk.startsWith(uniquePrefix);
@@ -249,9 +252,11 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   }, []);
 
   React.useEffect(() => {
-    const checklist = getParallelChecklistStatus(selectedProject);
-    setParallelUploadChecklist(checklist);
-  }, [selectedProject, getParallelChecklistStatus]);
+    if (hasMounted) {
+      const checklist = getParallelChecklistStatus(selectedProject);
+      setParallelUploadChecklist(checklist);
+    }
+  }, [selectedProject, getParallelChecklistStatus, hasMounted]);
 
   const finalDocsChecklistStatus = React.useMemo(() => {
     if (!selectedProject || selectedProject.status !== 'Pending Final Documents') return null;
@@ -376,14 +381,16 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     try {
         if (currentFiles.length > 0) {
+            // When uploading for a checklist item, generate the STRICT unique key prefix
             const uniqueKey = divisionForFile && associatedChecklistItem 
                 ? getUniqueKey(divisionForFile, associatedChecklistItem)
-                : null;
+                : "";
 
             for (const file of currentFiles) {
                 const formDataPayload: Record<string, string | null> = {
                   projectId: selectedProject.id,
                   userId: currentUser.id,
+                  // Tag the file role with the target division for the checklist
                   uploaderRole: divisionForFile || actingRole || currentUser.roles[0],
                   note: currentDescription,
                   associatedChecklistItem: uniqueKey,
@@ -544,7 +551,12 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     return finalDocsChecklistStatus.every(item => item.uploaded);
   }, [finalDocsChecklistStatus]);
 
-  if (!hasMounted) return null;
+  if (!hasMounted) return (
+      <div className="container mx-auto py-4 px-4 md:px-6">
+          <Card><CardHeader><Skeleton className="h-7 w-1/3 mb-2" /><Skeleton className="h-4 w-2/3" /></CardHeader>
+          <CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
+      </div>
+  );
 
   const renderProjectList = () => (
       <Card className="shadow-md">

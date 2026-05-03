@@ -40,7 +40,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Missing required finalization data.' }, { status: 400 });
     }
 
-    // associatedChecklistItem expected format: ___DIV_[div]_ITEM_[item]___
+    // associatedChecklistItem is expected to be a unique key like: ___DIV_arsitek_ITEM_gambar___
+    // This prefix is what the client looks for when rendering the checklist.
     const prefix = associatedChecklistItem ? `${associatedChecklistItem}` : "";
     
     // Sanitize the original filename for storage safely
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
     const base = path.basename(originalFilename, ext).toLowerCase().replace(/[^a-z0-9]/g, '_');
     const safeOriginalName = base + ext.toLowerCase();
 
-    // The final filename will ALWAYS start with the unique identity key
+    // The physical filename on disk ALWAYS starts with the prefix for strict isolation
     const finalFilenameOnDisk = `${prefix}${safeOriginalName}`;
 
     const projectSpecificDir = path.join(PROJECT_FILES_BASE_DIR, projectId);
