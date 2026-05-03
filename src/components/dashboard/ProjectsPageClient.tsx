@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Version: 2.1.0 - Strict Checklist Matching
+ * Version: 2.2.0 - Strict Checklist Matching (No broad fallback)
  */
 
 import * as React from 'react';
@@ -175,7 +175,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   const projectIdFromUrl = searchParams.get('projectId');
 
   const getBaseName = (filePath: string) => {
-    // Robust basename logic for browser
     return filePath.split(/[\\/]/).pop() || '';
   };
 
@@ -276,16 +275,9 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                     
                     const matchingFiles = projectFiles.filter(file => {
                         const fileNameOnDisk = getBaseName(file.path);
-                        
-                        // Rule 1: Matches the strict new prefix
-                        const hasStrictPrefix = fileNameOnDisk.startsWith(prefix);
-                        
-                        // Rule 2: Fallback for older files or files uploaded before role verification
-                        // We check if the division name is anywhere in the prefix part of the filename
-                        const isUploadedByMatchingRole = file.uploadedBy === division;
-                        const startsWithItemName = fileNameOnDisk.startsWith(safeSanitize(item.name) + "_");
-                        
-                        return hasStrictPrefix || (isUploadedByMatchingRole && startsWithItemName);
+                        // Rule: Only match if it has the strict division-based prefix
+                        // This prevents "leakage" where common names like "Gambar" match all columns.
+                        return fileNameOnDisk.startsWith(prefix);
                     });
 
                     return {
@@ -428,7 +420,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     try {
         if (currentFiles.length > 0) {
-            // Uniquely identify the checklist item by combining division and name
             let finalAssociatedItem = associatedChecklistItem;
             if (divisionForFile && associatedChecklistItem) {
                 finalAssociatedItem = `${divisionForFile}_${associatedChecklistItem}`;
