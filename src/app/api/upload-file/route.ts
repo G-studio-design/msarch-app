@@ -1,4 +1,3 @@
-
 // src/app/api/upload-file/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { stat, mkdir, rename } from 'fs/promises';
@@ -31,7 +30,7 @@ export async function POST(req: NextRequest) {
         userId, 
         uploaderRole, 
         note, 
-        associatedChecklistItem, 
+        associatedChecklistItem, // Ini sekarang berisi prefix unik ___DIV_..._ITEM_...___
         tempPath,
         originalFilename
     } = body;
@@ -40,16 +39,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Missing required finalization data.' }, { status: 400 });
     }
 
-    // associatedChecklistItem is expected to be a unique key like: ___DIV_arsitek_ITEM_gambar___
-    // This prefix is what the client looks for when rendering the checklist.
-    const prefix = associatedChecklistItem ? `${associatedChecklistItem}` : "";
+    // Gunakan prefix unik dari client untuk mengisolasi file secara fisik
+    const prefix = associatedChecklistItem || "";
     
-    // Sanitize the original filename for storage safely
+    // Sanitasi nama asli agar aman disimpan
     const ext = path.extname(originalFilename);
     const base = path.basename(originalFilename, ext).toLowerCase().replace(/[^a-z0-9]/g, '_');
     const safeOriginalName = base + ext.toLowerCase();
 
-    // The physical filename on disk ALWAYS starts with the prefix for strict isolation
+    // Nama file akhir di disk AKAN SELALU diawali dengan prefix unik divisi_item
     const finalFilenameOnDisk = `${prefix}${safeOriginalName}`;
 
     const projectSpecificDir = path.join(PROJECT_FILES_BASE_DIR, projectId);
@@ -58,6 +56,7 @@ export async function POST(req: NextRequest) {
     const tempFilePath = path.join(UPLOAD_TEMP_DIR, path.basename(tempPath));
     const finalFilePath = path.join(projectSpecificDir, finalFilenameOnDisk);
     
+    // Pindahkan file dari folder sementara ke folder proyek permanen
     await rename(tempFilePath, finalFilePath);
 
     const relativePath = `${projectId}/${finalFilenameOnDisk}`.replace(/\\/g, '/');
