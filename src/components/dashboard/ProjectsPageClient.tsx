@@ -164,7 +164,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   const projectsDict = React.useMemo(() => dict.projectsPage, [dict]);
   const dashboardDict = React.useMemo(() => dict.dashboardPage, [dict]);
 
-  // Helper untuk mendapatkan nama file dari path
   const getBaseName = (filePath: string) => {
     return filePath.split(/[\\/]/).pop() || '';
   };
@@ -201,26 +200,27 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     const isParallelOrRevision = ['Pending Parallel Design Uploads', 'Pending Post-Sidang Revision'].includes(project.status);
     if (!isParallelOrRevision) return null;
 
+    // Perbaikan Profesional: Menamai item secara spesifik agar tidak tabrakan
     const requiredChecklists: ParallelUploadChecklist = {
         Arsitek: [
-            { name: 'Gambar', uploaded: false, files: [] },
-            { name: 'Daftar Simak', uploaded: false, files: [] },
-            { name: 'SpekTek', uploaded: false, files: [] },
-            { name: 'RAP', uploaded: false, files: [] }
+            { name: 'Gambar Arsitek', uploaded: false, files: [] },
+            { name: 'Daftar Simak Arsitek', uploaded: false, files: [] },
+            { name: 'SpekTek Arsitek', uploaded: false, files: [] },
+            { name: 'RAP Arsitek', uploaded: false, files: [] }
         ],
         Struktur: [
-            { name: 'Gambar', uploaded: false, files: [] },
-            { name: 'Analisa Laporan', uploaded: false, files: [] },
-            { name: 'Hammer Test', uploaded: false, files: [] },
-            { name: 'SpekTek', uploaded: false, files: [] },
-            { name: 'Daftar Simak', uploaded: false, files: [] }
+            { name: 'Gambar Struktur', uploaded: false, files: [] },
+            { name: 'Analisa Laporan Struktur', uploaded: false, files: [] },
+            { name: 'Hammer Test Struktur', uploaded: false, files: [] },
+            { name: 'SpekTek Struktur', uploaded: false, files: [] },
+            { name: 'Daftar Simak Struktur', uploaded: false, files: [] }
         ],
         MEP: [
-            { name: 'Gambar', uploaded: false, files: [] },
-            { name: 'Daftar Simak', uploaded: false, files: [] },
-            { name: 'SpekTek', uploaded: false, files: [] },
-            { name: 'RAP', uploaded: false, files: [] },
-            { name: 'Laporan', uploaded: false, files: [] }
+            { name: 'Gambar MEP', uploaded: false, files: [] },
+            { name: 'Daftar Simak MEP', uploaded: false, files: [] },
+            { name: 'SpekTek MEP', uploaded: false, files: [] },
+            { name: 'RAP MEP', uploaded: false, files: [] },
+            { name: 'Laporan MEP', uploaded: false, files: [] }
         ],
     };
     
@@ -233,7 +233,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             currentStatus[division] = checklistItems.map(item => {
                 const uniquePrefix = getUniqueKey(division, item.name);
                 
-                // FILTER KETAT: Hanya ambil file yang namanya diawali dengan prefix unik divisi+item
                 const matchingFiles = projectFiles.filter(file => {
                     const fileNameOnDisk = getBaseName(file.path);
                     return fileNameOnDisk.startsWith(uniquePrefix);
@@ -363,7 +362,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     try {
         if (currentFiles.length > 0) {
-            // Hasilkan prefix fisik unik: ___DIV_..._ITEM_...___
             const uniqueKeyPrefix = divisionForFile && itemName 
                 ? getUniqueKey(divisionForFile, itemName)
                 : "";
@@ -372,9 +370,9 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                 const formDataPayload: Record<string, string | null> = {
                   projectId: selectedProject.id,
                   userId: currentUser.id,
-                  uploaderRole: divisionForFile || currentUser.roles[0], // Tag metadata sesuai divisi kolom
+                  uploaderRole: divisionForFile || currentUser.roles[0], 
                   note: currentDescription,
-                  associatedChecklistItem: uniqueKeyPrefix, // Kirim prefix ke API
+                  associatedChecklistItem: uniqueKeyPrefix, 
                 };
                 await uploadFileWithFormData(file, formDataPayload, (p) => console.log(`Progres ${file.name}: ${p}%`));
             }

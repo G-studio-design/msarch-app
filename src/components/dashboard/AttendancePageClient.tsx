@@ -41,7 +41,7 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
 
   React.useEffect(() => {
     setIsClient(true);
-    setTodayDate(new Date()); // Initialize only on client
+    setTodayDate(new Date()); 
   }, []);
 
   const [dict, setDict] = React.useState(defaultDict.attendancePage);
@@ -176,6 +176,7 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
   };
 
   const attendanceModifiers = React.useMemo(() => {
+    if (!isClient) return {};
     const modifiers: Record<string, Date[]> = {
       present: [],
       late: [],
@@ -198,7 +199,7 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
     });
 
     return modifiers;
-  }, [userHistory, leaves, holidays, currentUser]);
+  }, [userHistory, leaves, holidays, currentUser, isClient]);
   
   const currentLocale = language === 'id' ? IndonesianLocale : EnglishLocale;
   
@@ -229,18 +230,6 @@ export default function AttendancePageClient({ initialData }: AttendancePageClie
           <CardContent><p>Fitur absensi saat ini tidak diaktifkan oleh administrator.</p></CardContent>
         </Card>
       </div>
-    );
-  }
-
-  if (!currentUser) {
-    return (
-        <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
-              <Skeleton className="h-8 w-1/3 mb-4" />
-              <div className="grid gap-6 md:grid-cols-2">
-                  <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-24 w-full" /></CardContent></Card>
-                  <Card><CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
-              </div>
-          </div>
     );
   }
 
