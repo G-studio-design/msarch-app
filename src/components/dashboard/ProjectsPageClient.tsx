@@ -1,5 +1,9 @@
 'use client';
 
+/**
+ * Version: 2.1.0 - Strict Checklist Matching
+ */
+
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,7 +19,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Upload,
-  Send,
   CheckCircle,
   XCircle,
   FileText,
@@ -24,22 +27,15 @@ import {
   Loader2,
   AlertTriangle,
   ListFilter,
-  ArrowRight,
-  Clock,
   ArrowLeft,
   Download,
-  RefreshCw,
   Search,
-  Replace,
-  Briefcase,
   MapPin,
   Shield,
   Circle as CircleIcon,
   Wrench,
   Check,
-  FileLock,
-  CalendarIcon,
-  Banknote
+  CalendarIcon
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
@@ -62,7 +58,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Popover,
@@ -73,26 +68,16 @@ import { Calendar } from '@/components/ui/calendar';
 import { useLanguage } from '@/context/LanguageContext';
 import { getDictionary } from '@/lib/translations';
 import { useAuth } from '@/context/AuthContext';
-import { Skeleton } from '@/components/ui/skeleton';
 import type { Project, WorkflowHistoryEntry, FileEntry, UpdateProjectParams } from '@/types/project-types';
 import {
     DropdownMenu,
     DropdownMenuCheckboxItem,
     DropdownMenuContent,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from "@/dropdown-menu";
+} from "@/components/ui/dropdown-menu";
 import { cn } from '@/lib/utils';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ToastAction } from '@/components/ui/toast';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
 import { id as IndonesianLocale, enUS as EnglishLocale } from 'date-fns/locale';
 import { API_BASE_URL } from '@/config/api-config';
@@ -124,11 +109,14 @@ interface GroupedHistoryItem {
 
 const finalDocRequirements = ['Dokumen Final', 'Berita Acara', 'SKRD', 'Bukti Pembayaran', 'Ijin Terbit', 'Pelunasan', 'Tanda Terima'];
 
+/**
+ * Strict Sanitization - MUST match server-side sanitizeForPath exactly.
+ */
 function safeSanitize(text: string): string {
     return text.toLowerCase()
         .trim()
-        .replace(/\s+/g, '_')
-        .replace(/[^a-z0-9_-]/g, '')
+        .replace(/[\s-]+/g, '_')
+        .replace(/[^a-z0-9_]/g, '')
         .replace(/_+/g, '_');
 }
 
@@ -185,7 +173,8 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   const projectIdFromUrl = searchParams.get('projectId');
 
   const getBaseName = (filePath: string) => {
-    return filePath.split('/').pop() || '';
+    // Robust basename logic for browser
+    return filePath.split(/[\\/]/).pop() || '';
   };
 
   const fetchAllProjects = React.useCallback(async () => {
@@ -226,7 +215,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         const projectToSelect = allProjects.find(p => p.id === projectIdFromUrl);
         if (projectToSelect) {
           setSelectedProject(projectToSelect);
-          // Set these on mount to avoid hydration mismatch
           if (isClient) {
               setScheduleDate(projectToSelect.scheduleDetails?.date ? parseISO(projectToSelect.scheduleDetails.date) : undefined);
               setScheduleTime(projectToSelect.scheduleDetails?.time || '');
@@ -281,12 +269,23 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             const checklistItems = requiredChecklists[division];
             if (checklistItems) {
                 currentStatus[division] = checklistItems.map(item => {
-                    // Use a very strict prefix: arsitek_gambar_
+                    // Strict prefix: e.g. "arsitek_gambar_"
                     const prefix = safeSanitize(division + "_" + item.name) + "_";
+                    
                     const matchingFiles = projectFiles.filter(file => {
-                        const baseName = getBaseName(file.path);
-                        return baseName.startsWith(prefix);
+                        const fileNameOnDisk = getBaseName(file.path);
+                        
+                        // Rule 1: Matches the strict new prefix
+                        const hasStrictPrefix = fileNameOnDisk.startsWith(prefix);
+                        
+                        // Rule 2: Fallback for older files or files uploaded before role verification
+                        // We check if the division name is anywhere in the prefix part of the filename
+                        const isUploadedByMatchingRole = file.uploadedBy === division;
+                        const startsWithItemName = fileNameOnDisk.startsWith(safeSanitize(item.name) + "_");
+                        
+                        return hasStrictPrefix || (isUploadedByMatchingRole && startsWithItemName);
                     });
+
                     return {
                         ...item,
                         uploaded: matchingFiles.length > 0,
@@ -311,8 +310,8 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         return finalDocRequirements.map(reqName => {
             const prefix = safeSanitize("final_" + reqName) + "_";
             const matchingFiles = projectFiles.filter(file => {
-                const baseName = getBaseName(file.path);
-                return baseName.startsWith(prefix);
+                const fileNameOnDisk = getBaseName(file.path);
+                return fileNameOnDisk.startsWith(prefix);
             });
             return {
                 name: reqName,
@@ -323,7 +322,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     }, [selectedProject]);
 
   const formatTimestamp = React.useCallback((timestamp: string): string => {
-    if (!isClient) return ''; // Avoid mismatch
+    if (!isClient) return ''; 
     const locale = language === 'id' ? 'id-ID' : 'en-US';
     try {
       return new Date(timestamp).toLocaleString(locale, {
@@ -334,13 +333,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
       return projectsDict.invalidDate || "Invalid Date";
     }
   }, [language, projectsDict, isClient]);
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      const filesArray = Array.from(event.target.files);
-      setSelectedFiles(prevFiles => [...prevFiles, ...filesArray]);
-    }
-  };
 
   const removeFile = (index: number) => {
     setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
@@ -389,11 +381,11 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   const uploadFileWithFormData = async (file: File, formDataPayload: Record<string, string | null>, onProgress: (percentage: number) => void): Promise<any> => {
     const CHUNK_SIZE = 5 * 1024 * 1024;
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    const uploadId = `${file.name}-${file.lastModified}-${file.size}`;
+    const uploadId = `${file.name}-${file.lastModified}-${file.size}-${Math.random()}`;
 
     for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
         const start = chunkIndex * CHUNK_SIZE;
-        const end = start + CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
         const chunk = file.slice(start, end);
         const chunkFormData = new FormData();
         chunkFormData.append('chunk', chunk);
@@ -403,7 +395,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         chunkFormData.append('uploadId', uploadId);
 
         const response = await fetch(`${API_BASE_URL}/api/upload/stream`, { method: 'POST', body: chunkFormData });
-        if (!response.ok) throw new Error(`Failed to upload chunk ${chunkIndex}.`);
+        if (!response.ok) throw new Error(`Gagal mengunggah bagian ${chunkIndex}.`);
 
         const progress = Math.round(((chunkIndex + 1) / totalChunks) * 100);
         onProgress(progress);
@@ -419,7 +411,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                     originalFilename: lastChunkResponse.originalFilename,
                 }),
             });
-            if (!finalResponse.ok) throw new Error('Failed to finalize file upload.');
+            if (!finalResponse.ok) throw new Error('Gagal menggabungkan file di server.');
             return finalResponse.json();
         }
     }
@@ -434,9 +426,9 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     try {
         if (currentFiles.length > 0) {
+            // Uniquely identify the checklist item by combining division and name
             let finalAssociatedItem = associatedChecklistItem;
             if (divisionForFile && associatedChecklistItem) {
-                // Ensure prefix is consistent with backend sanitization: division_item_
                 finalAssociatedItem = `${divisionForFile}_${associatedChecklistItem}`;
             }
 
@@ -448,7 +440,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                   note: currentDescription,
                   associatedChecklistItem: finalAssociatedItem || null,
                 };
-                await uploadFileWithFormData(file, formDataPayload, (p) => console.log(`Upload ${file.name}: ${p}%`));
+                await uploadFileWithFormData(file, formDataPayload, (p) => console.log(`Progres ${file.name}: ${p}%`));
             }
         }
         
@@ -457,7 +449,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             updaterRoles: currentUser.roles,
             updaterUsername: currentUser.username,
             actionTaken: actionTaken,
-            note: currentFiles.length > 0 ? undefined : (currentDescription || undefined), 
+            note: currentDescription || undefined, 
             scheduleDetails: (selectedProject.status === 'Pending Scheduling' && actionTaken === 'scheduled' && scheduleDate) ? {
                 date: format(scheduleDate, 'yyyy-MM-dd'),
                 time: scheduleTime,
@@ -476,7 +468,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             body: JSON.stringify(updatePayload),
         });
 
-        if (!response.ok) throw new Error('Update failed');
+        if (!response.ok) throw new Error('Pembaruan status gagal');
         toast({ title: projectsDict.toast.progressSubmitted });
 
         setDescription('');
@@ -521,14 +513,14 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         setIsDownloading(true);
         try {
             const response = await fetch(`${API_BASE_URL}/api/download-file?filePath=${encodeURIComponent(file.path)}`);
-            if (!response.ok) throw new Error('Download failed');
+            if (!response.ok) throw new Error('Download gagal');
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a'); a.href = url; a.download = file.name;
             document.body.appendChild(a); a.click(); a.remove(); window.URL.revokeObjectURL(url);
-            toast({ title: "Download Started" });
+            toast({ title: "Unduhan Dimulai" });
         } catch (error: any) {
-            toast({ variant: 'destructive', title: "Error", description: error.message });
+            toast({ variant: 'destructive', title: "Kesalahan", description: error.message });
         } finally {
             setIsDownloading(false);
         }
@@ -542,12 +534,12 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ projectId: selectedProject.id, filePath, userId: currentUser.id })
             });
-            if (!response.ok) throw new Error('Delete failed');
+            if (!response.ok) throw new Error('Gagal menghapus file');
             const updated = await fetchProjectById(selectedProject.id);
             if (updated) { setAllProjects(prev => prev.map(p => p.id === updated.id ? updated : p)); setSelectedProject(updated); }
-            toast({ title: "File Deleted" });
+            toast({ title: "File Dihapus" });
         } catch (error: any) {
-            toast({ variant: 'destructive', title: "Error", description: error.message });
+            toast({ variant: 'destructive', title: "Kesalahan", description: error.message });
         } finally {
             setIsDeletingFile(null);
         }
@@ -561,12 +553,12 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ specialAction: 'markDivisionComplete', projectId: selectedProject.id, updaterRoles: currentUser.roles, updaterUsername: currentUser.username }),
             });
-            if (!response.ok) throw new Error('Update failed');
+            if (!response.ok) throw new Error('Gagal memperbarui status divisi');
             const updated = await fetchProjectById(selectedProject.id);
             if (updated) { setAllProjects(prev => prev.map(p => p.id === updated.id ? updated : p)); setSelectedProject(updated); }
-            toast({ title: "Selesai" });
+            toast({ title: "Tugas Divisi Selesai" });
         } catch (error: any) {
-            toast({ variant: 'destructive', title: "Error", description: error.message });
+            toast({ variant: 'destructive', title: "Kesalahan", description: error.message });
         } finally {
             setIsSubmitting(false);
         }
@@ -663,9 +655,9 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                   <li key={file.path} className="flex justify-between items-center text-xs text-muted-foreground hover:text-foreground">
                     <span className="truncate pr-2">{file.name}</span>
                     <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => handleDownloadFile(file)} className="h-6 w-6"><Download className="h-3 w-3 text-primary" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDownloadFile(file)} className="h-6 w-6" disabled={isDownloading}><Download className="h-3 w-3 text-primary" /></Button>
                         {(canAdminDelete || currentUser?.roles.includes(file.uploadedBy || '')) && (
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteFile(file.path, file.name)} className="h-6 w-6"><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteFile(file.path, file.name)} className="h-6 w-6" disabled={!!isDeletingFile}><Trash2 className="h-3 w-3 text-destructive" /></Button>
                         )}
                     </div>
                   </li>
@@ -720,7 +712,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <ul className="pl-6 pt-2 space-y-2">
-                                            {group.files.map((file, fi) => (<li key={fi} className="flex items-center justify-between p-2 border rounded-md hover:bg-muted gap-2"><div className="flex items-center gap-2 min-w-0"><FileText className="h-4 w-4 text-primary flex-shrink-0" /><span className="text-sm truncate">{file.name}</span></div><Button variant="ghost" size="icon" onClick={() => handleDownloadFile(file)} className="h-7 w-7"><Download className="h-4 w-4 text-primary" /></Button></li>))}
+                                            {group.files.map((file, fi) => (<li key={fi} className="flex items-center justify-between p-2 border rounded-md hover:bg-muted gap-2"><div className="flex items-center gap-2 min-w-0"><FileText className="h-4 w-4 text-primary flex-shrink-0" /><span className="text-sm truncate">{file.name}</span></div><Button variant="ghost" size="icon" onClick={() => handleDownloadFile(file)} className="h-7 w-7" disabled={isDownloading}><Download className="h-4 w-4 text-primary" /></Button></li>))}
                                         </ul>
                                     </AccordionContent>
                                 </AccordionItem>
@@ -732,26 +724,26 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                 {project.status === 'Pending Final Documents' && finalDocsChecklistStatus && (
                     <Card className="mb-6 shadow-md border-primary/20">
                         <CardHeader className="p-4 sm:p-6"><CardTitle>Unggah Dokumen Akhir</CardTitle></CardHeader>
-                        <CardContent className="p-4 sm:p-6 pt-0 space-y-4"><ul className="space-y-2">{finalDocsChecklistStatus.map((item, idx, all) => (
+                        <CardContent className="p-4 sm:p-6 pt-0 space-y-4"><ul className="space-y-2">{finalDocsChecklistStatus.map((item) => (
                              <li key={`final-${item.name}`} className="flex text-sm p-2 border rounded-md gap-2 flex-col items-start">
                                <div className="flex justify-between items-center w-full">
                                  <div className="flex items-center gap-2 flex-1 min-w-0">{item.uploaded ? <CheckCircle className="h-4 w-4 text-green-500" /> : <CircleIcon className="h-4 w-4 text-muted-foreground" />}<span className={cn("truncate", item.uploaded ? "text-foreground font-medium" : "text-muted-foreground")}>{item.name}</span></div>
                                  {(currentUser?.roles.some(r => ['Admin Proyek', 'Owner', 'Akuntan'].includes(r))) && (<Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setUploadDialogState({ isOpen: true, item, division: 'final' })} disabled={isSubmitting}><Upload className="h-3 w-3" /></Button>)}
                                </div>
-                               {item.files.length > 0 && (<ul className="pl-6 pt-1 space-y-1 w-full border-t mt-1">{item.files.map(f => (<li key={f.path} className="flex justify-between items-center text-xs"><span className="truncate pr-2">{f.name}</span><div className="flex items-center gap-1"><Button variant="ghost" size="icon" onClick={() => handleDownloadFile(f)} className="h-6 w-6"><Download className="h-3 w-3 text-primary" /></Button><Button variant="ghost" size="icon" onClick={() => handleDeleteFile(f.path, f.name)} className="h-6 w-6"><Trash2 className="h-3 w-3 text-destructive" /></Button></div></li>))}</ul>)}
+                               {item.files.length > 0 && (<ul className="pl-6 pt-1 space-y-1 w-full border-t mt-1">{item.files.map(f => (<li key={f.path} className="flex justify-between items-center text-xs"><span className="truncate pr-2">{f.name}</span><div className="flex items-center gap-1"><Button variant="ghost" size="icon" onClick={() => handleDownloadFile(f)} className="h-6 w-6" disabled={isDownloading}><Download className="h-3 w-3 text-primary" /></Button><Button variant="ghost" size="icon" onClick={() => handleDeleteFile(f.path, f.name)} className="h-6 w-6" disabled={!!isDeletingFile}><Trash2 className="h-3 w-3 text-destructive" /></Button></div></li>))}</ul>)}
                              </li>
                         ))}</ul></CardContent>
                         {currentUser?.roles.includes('Admin Proyek') && (<CardFooter className="p-4 sm:p-6 border-t"><Button onClick={() => handleDecision('completed')} disabled={isSubmitting || !allFinalDocsUploaded} className="w-full sm:w-auto accent-teal"><CheckCircle className="mr-2 h-4 w-4" />Selesaikan Proyek</Button></CardFooter>)}
                     </Card>
                 )}
 
-                <Dialog open={uploadDialogState.isOpen} onOpenChange={o => setUploadDialogState(s => ({ ...s, isOpen: o }))}>
+                <Dialog open={uploadDialogState.isOpen} onOpenChange={o => { if (!isSubmitting) setUploadDialogState(s => ({ ...s, isOpen: o })); }}>
                     <DialogContent>
                         <DialogHeader><DialogTitle>Unggah: {uploadDialogState.item?.name}</DialogTitle></DialogHeader>
                         <div className="space-y-4 py-4">
                           <Textarea placeholder="Catatan (opsional)..." value={description} onChange={e => setDescription(e.target.value)} disabled={isSubmitting}/>
-                          <Input type="file" multiple onChange={handleFileChange} disabled={isSubmitting} />
-                          {uploadedFiles.length > 0 && (<div className="space-y-1 rounded-md border p-2">{uploadedFiles.map((f, i) => (<div key={i} className="flex justify-between items-center text-xs p-1"><span>{f.name}</span><Button variant="ghost" size="sm" onClick={() => removeFile(i)} className="h-6 w-6"><Trash2 className="h-3 w-3 text-destructive" /></Button></div>))}</div>)}
+                          <Input type="file" multiple onChange={(e) => { if (e.target.files) setUploadedFiles(Array.from(e.target.files)); }} disabled={isSubmitting} />
+                          {uploadedFiles.length > 0 && (<div className="space-y-1 rounded-md border p-2">{uploadedFiles.map((f, i) => (<div key={i} className="flex justify-between items-center text-xs p-1"><span>{f.name}</span><Button variant="ghost" size="sm" onClick={() => removeFile(i)} className="h-6 w-6" disabled={isSubmitting}><Trash2 className="h-3 w-3 text-destructive" /></Button></div>))}</div>)}
                         </div>
                         <DialogFooter><Button variant="outline" onClick={() => { setUploadDialogState({ isOpen: false, item: null, division: null }); setUploadedFiles([]); setDescription(''); }} disabled={isSubmitting}>Batal</Button><Button onClick={() => handleProgressSubmit('submitted', uploadedFiles, description, uploadDialogState.item?.name, uploadDialogState.division || undefined)} disabled={isSubmitting || uploadedFiles.length === 0}>{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Unggah</Button></DialogFooter>
                     </DialogContent>

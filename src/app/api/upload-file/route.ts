@@ -1,7 +1,6 @@
-
 // src/app/api/upload-file/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, stat, mkdir, rename } from 'fs/promises';
+import { stat, mkdir, rename } from 'fs/promises';
 import path from 'path';
 import { sanitizeForPath } from '@/lib/path-utils';
 import { addFilesToProject } from '@/services/project-service';
@@ -41,12 +40,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Missing required finalization data.' }, { status: 400 });
     }
 
-    // Tight prefix generation: e.g. "arsitek_gambar_"
+    // Generate strict prefix using the same utility as the client matching logic
+    // associatedChecklistItem will be e.g. "Arsitek_Gambar" or "final_Berita Acara"
     const prefix = associatedChecklistItem 
-      ? sanitizeForPath(associatedChecklistItem).replace(/[^a-z0-9_]/g, '') + "_" 
+      ? sanitizeForPath(associatedChecklistItem) + "_" 
       : "";
     
-    const safeFilenameForPath = `${prefix}${sanitizeForPath(originalFilename) || `unnamed_${Date.now()}`}`;
+    // Sanitize the actual filename too
+    const ext = path.extname(originalFilename);
+    const base = path.basename(originalFilename, ext);
+    const safeOriginalName = sanitizeForPath(base) + ext.toLowerCase();
+
+    const safeFilenameForPath = `${prefix}${safeOriginalName || `file_${Date.now()}`}`;
 
     const projectSpecificDir = path.join(PROJECT_FILES_BASE_DIR, projectId);
     await ensureDirectoryExists(projectSpecificDir);
@@ -56,24 +61,24 @@ export async function POST(req: NextRequest) {
     
     await rename(tempFilePath, finalFilePath);
 
-    const relativePath = path.join(projectId, safeFilenameForPath).replace(/\\/g, '/');
-    const historyNote = `File uploaded for checklist item: "${associatedChecklistItem || 'General Upload'}". ${note ? `Catatan: ${note}`: ''}`;
+    const relativePath = `${projectId}/${safeFilenameForPath}`.replace(/\\/g, '/');
+    const historyNote = `File diunggah untuk item: "${associatedChecklistItem || 'Umum'}". ${note ? `Catatan: ${note}`: ''}`;
     
     const fileEntry = {
       name: originalFilename,
       path: relativePath,
-      uploadedBy: uploaderRole,
+      uploadedBy: uploaderRole, // This is important for secondary filtering
     };
     
     await addFilesToProject(projectId, [fileEntry], userId, historyNote);
 
     return NextResponse.json({
-        message: 'File assembled and moved successfully',
+        message: 'File successfully processed',
         ...fileEntry
     });
 
   } catch (error) {
-    console.error(`[API/UploadFile] Error during file finalization:`, error);
+    console.error(`[API/UploadFile] Error:`, error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to finalize file upload.';
     return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
