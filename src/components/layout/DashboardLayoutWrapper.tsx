@@ -98,7 +98,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
   const { toast } = useToast();
   const router = useRouter();
   
-  const [isClient, setIsClient] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   
@@ -106,7 +106,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
   const [avatarKey, setAvatarKey] = useState(0);
 
   useEffect(() => {
-    setIsClient(true);
+    setHasMounted(true);
     // Update key after mount to ensure client and server initial render match
     setAvatarKey(Date.now());
   }, []);
@@ -119,7 +119,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
 
 
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
+    if (hasMounted && 'serviceWorker' in navigator) {
       const handleServiceWorkerMessage = (event: MessageEvent) => {
         if (event.data && event.data.type === 'navigate' && event.data.url) {
           router.push(event.data.url);
@@ -131,11 +131,11 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
         navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
       };
     }
-  }, [router]);
+  }, [router, hasMounted]);
 
   const { layoutDict, notificationsDict, manageUsersDict } = useMemo(() => {
     const defaultDict = getDictionary('en'); 
-    if (!isClient) {
+    if (!hasMounted) {
       return {
         layoutDict: defaultDict.dashboardLayout,
         notificationsDict: defaultDict.notifications,
@@ -148,14 +148,14 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
       notificationsDict: currentDict.notifications,
       manageUsersDict: currentDict.manageUsersPage,
     };
-  }, [isClient, language]);
+  }, [hasMounted, language]);
 
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    if (isClient && 'Notification' in window && Notification.permission === 'denied') {
+    if (hasMounted && 'Notification' in window && Notification.permission === 'denied') {
         toast({
             title: notificationsDict.permissionDeniedTitle,
             description: notificationsDict.permissionDeniedDesc,
@@ -163,11 +163,11 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
             duration: 10000
         });
     }
-  }, [isClient, toast, notificationsDict]);
+  }, [hasMounted, toast, notificationsDict]);
 
 
   const fetchNotifications = useCallback(async () => {
-    if (isClient && currentUser) {
+    if (hasMounted && currentUser) {
       try {
         const response = await fetch(`${API_BASE_URL}/api/notifications?userId=${currentUser.id}`);
         if (!response.ok) return;
@@ -177,15 +177,15 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
          console.error("Failed to fetch notifications:", error);
       }
     }
-  }, [isClient, currentUser]);
+  }, [hasMounted, currentUser]);
   
   useEffect(() => {
-    if (isClient && currentUser) {
+    if (hasMounted && currentUser) {
       fetchNotifications();
       const intervalId = setInterval(fetchNotifications, 30000); 
       return () => clearInterval(intervalId);
     }
-  }, [isClient, currentUser, fetchNotifications]);
+  }, [hasMounted, currentUser, fetchNotifications]);
 
 
   useEffect(() => {
@@ -212,7 +212,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
 
 
   const visibleMenuItems = useMemo(() => {
-    if (isClient && currentUser && Array.isArray(currentUser.roles)) {
+    if (hasMounted && currentUser && Array.isArray(currentUser.roles)) {
       return menuItems.filter(item => {
         const hasRole = item.roles.some(requiredRole => currentUser.roles.includes(requiredRole));
         if (item.featureFlag) {
@@ -223,24 +223,24 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
       });
     }
     return [];
-  }, [isClient, currentUser, menuItems, attendanceEnabled]);
+  }, [hasMounted, currentUser, menuItems, attendanceEnabled]);
 
-  const RoleIcon = useMemo(() => isClient && currentUser && currentUser.roles && currentUser.roles.length > 0 ? getUserRoleIcon(currentUser.roles[0]) : User, [isClient, currentUser]);
+  const RoleIcon = useMemo(() => hasMounted && currentUser && currentUser.roles && currentUser.roles.length > 0 ? getUserRoleIcon(currentUser.roles[0]) : User, [hasMounted, currentUser]);
 
 
    const getTranslatedRole = useCallback((role: string | string[]): string => {
        const rolesDict = manageUsersDict.roles as Record<string, string>;
-       if (!isClient || !rolesDict || !role) return Array.isArray(role) ? role.join(', ') : (role || '');
+       if (!hasMounted || !rolesDict || !role) return Array.isArray(role) ? role.join(', ') : (role || '');
        const rolesToTranslate = Array.isArray(role) ? role : [role];
        return rolesToTranslate.map(r => {
            const roleKey = r.trim().replace(/\s+/g, '').toLowerCase() as keyof typeof rolesDict;
            return rolesDict?.[roleKey] || r;
        }).join(', ');
-   }, [isClient, manageUsersDict]);
+   }, [hasMounted, manageUsersDict]);
 
 
-   const formatTimestamp = useCallback((timestamp: string): string => {
-       if (!isClient) return ''; // Never render relative time on server to avoid hydration mismatch
+   const formatRelativeTime = useCallback((timestamp: string): string => {
+       if (!hasMounted) return ''; 
        const now = new Date();
        const past = new Date(timestamp);
        const diffSeconds = Math.round((now.getTime() - past.getTime()) / 1000);
@@ -251,7 +251,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
        if (diffMinutes < 60) return `${diffMinutes}m ago`;
        if (diffHours < 24) return `${diffHours}h ago`;
        return `${diffDays}d ago`;
-   }, [isClient]);
+   }, [hasMounted]);
 
    const handleNotificationClick = useCallback(async (notification: Notification) => {
     setIsPopoverOpen(false);
@@ -296,7 +296,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
     setIsSheetOpen(false);
   };
   
-  if (!isClient || !isAuthHydrated) {
+  if (!hasMounted || !isAuthHydrated) {
       return (
           <div className="flex min-h-screen w-full bg-muted/40">
              <div className="flex-1 flex flex-col">
@@ -364,7 +364,7 @@ export default function DashboardLayoutWrapper({ children, attendanceEnabled }: 
                            )}></div>
                            <div className="flex-1">
                                <p className="text-sm">{notification.message}</p>
-                              <p className="text-xs text-muted-foreground" suppressHydrationWarning>{formatTimestamp(notification.timestamp)}</p>
+                              <p className="text-xs text-muted-foreground" suppressHydrationWarning>{formatRelativeTime(notification.timestamp)}</p>
                            </div>
                          </div>
                        ))

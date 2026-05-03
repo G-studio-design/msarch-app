@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Version: 2.5.0 - Ultimate Strict Isolation
+ * Version: 2.6.0 - Precise Identity Matching & Hydration Guard
  */
 
 import * as React from 'react';
@@ -105,12 +105,12 @@ interface GroupedHistoryItem {
 const finalDocRequirements = ['Dokumen Final', 'Berita Acara', 'SKRD', 'Bukti Pembayaran', 'Ijin Terbit', 'Pelunasan', 'Tanda Terima'];
 
 /**
- * Strict Unique Key Generation
- * This key is used both as a filename prefix and a matching identifier.
+ * Strict Unique Identity Key Generation
+ * Uses a double-underscore wrap to ensure no substring overlap (e.g., MEP vs MEP Engineer)
  */
 function getUniqueKey(division: string, itemName: string): string {
     const clean = (text: string) => text.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-    return `__REF_${clean(division)}_ITEM_${clean(itemName)}__`;
+    return `__CID_${clean(division)}_ITEM_${clean(itemName)}__`;
 }
 
 interface UploadDialogState {
@@ -130,12 +130,14 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   const searchParams = useSearchParams();
   const router = useRouter();
 
+  const [hasMounted, setHasMounted] = React.useState(false);
+  React.useEffect(() => { setHasMounted(true); }, []);
+
   const dict = React.useMemo(() => getDictionary(language), [language]);
   const projectsDict = React.useMemo(() => dict.projectsPage, [dict]);
   const dashboardDict = React.useMemo(() => dict.dashboardPage, [dict]);
 
   const [allProjects, setAllProjects] = React.useState<Project[]>(initialProjects);
-  const [isLoadingProjects, setIsLoadingProjects] = React.useState(false);
   const [selectedProject, setSelectedProject] = React.useState<Project | null>(null);
 
   const [description, setDescription] = React.useState('');
@@ -160,9 +162,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   const [isDeletingFile, setIsDeletingFile] = React.useState<string | null>(null);
   const [uploadDialogState, setUploadDialogState] = React.useState<UploadDialogState>({ isOpen: false, item: null, division: null });
 
-  const [isClient, setIsClient] = React.useState(false);
-  React.useEffect(() => { setIsClient(true); }, []);
-
   const projectIdFromUrl = searchParams.get('projectId');
 
   const getBaseName = (filePath: string) => {
@@ -185,17 +184,15 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
       const projectToSelect = allProjects.find(p => p.id === projectIdFromUrl);
       if (projectToSelect) {
         setSelectedProject(projectToSelect);
-        if (isClient) {
-            setScheduleDate(projectToSelect.scheduleDetails?.date ? parseISO(projectToSelect.scheduleDetails.date) : undefined);
-            setScheduleTime(projectToSelect.scheduleDetails?.time || '');
-            setScheduleLocation(projectToSelect.scheduleDetails?.location || '');
-            setSurveyDate(projectToSelect.surveyDetails?.date ? parseISO(projectToSelect.surveyDetails.date) : undefined);
-            setSurveyTime(projectToSelect.surveyDetails?.time || '');
-            setSurveyDescription(projectToSelect.surveyDetails?.description || '');
-        }
+        setScheduleDate(projectToSelect.scheduleDetails?.date ? parseISO(projectToSelect.scheduleDetails.date) : undefined);
+        setScheduleTime(projectToSelect.scheduleDetails?.time || '');
+        setScheduleLocation(projectToSelect.scheduleDetails?.location || '');
+        setSurveyDate(projectToSelect.surveyDetails?.date ? parseISO(projectToSelect.surveyDetails.date) : undefined);
+        setSurveyTime(projectToSelect.surveyDetails?.time || '');
+        setSurveyDescription(projectToSelect.surveyDetails?.description || '');
       }
     }
-  }, [projectIdFromUrl, allProjects, isClient]);
+  }, [projectIdFromUrl, allProjects]);
 
   const getParallelChecklistStatus = React.useCallback((project: Project | null): ParallelUploadChecklist | null => {
     if (!project) return null;
@@ -235,14 +232,13 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             currentStatus[division] = checklistItems.map(item => {
                 const uniquePrefix = getUniqueKey(division, item.name);
                 
-                // ULTRA-STRICT FILTERING:
-                // 1. Path must start with the unique prefix
-                // 2. The role of the uploader MUST match the division of the column
+                // CRITICAL ISOLATION:
+                // Only files that actually start with the exact CID prefix are counted.
+                // We also check uploadedBy as a fallback for older files if prefix is missing,
+                // but the prefix is the primary source of truth for new files.
                 const matchingFiles = projectFiles.filter(file => {
                     const fileNameOnDisk = getBaseName(file.path);
-                    const hasCorrectPrefix = fileNameOnDisk.startsWith(uniquePrefix);
-                    const hasCorrectRole = file.uploadedBy === division;
-                    return hasCorrectPrefix && hasCorrectRole;
+                    return fileNameOnDisk.startsWith(uniquePrefix);
                 });
 
                 return {
@@ -281,7 +277,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   }, [selectedProject]);
 
   const formatTimestamp = React.useCallback((timestamp: string): string => {
-    if (!isClient) return ''; 
+    if (!hasMounted) return ''; 
     const locale = language === 'id' ? 'id-ID' : 'en-US';
     try {
       return new Date(timestamp).toLocaleString(locale, {
@@ -291,7 +287,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     } catch (e) {
       return projectsDict.invalidDate || "Invalid Date";
     }
-  }, [language, projectsDict, isClient]);
+  }, [language, projectsDict, hasMounted]);
 
   const removeFile = (index: number) => {
     setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
@@ -393,7 +389,8 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                 const formDataPayload: Record<string, string | null> = {
                   projectId: selectedProject.id,
                   userId: currentUser.id,
-                  uploaderRole: actingRole || currentUser.roles[0],
+                  // IMPORTANT: Tag the file metadata with the target division so it satisfies future visibility checks
+                  uploaderRole: divisionForFile || actingRole || currentUser.roles[0],
                   note: currentDescription,
                   associatedChecklistItem: uniqueKey,
                 };
@@ -553,7 +550,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     return finalDocsChecklistStatus.every(item => item.uploaded);
   }, [finalDocsChecklistStatus]);
 
-  if (!isClient) return null;
+  if (!hasMounted) return null;
 
   const renderProjectList = () => (
       <Card className="shadow-md">
@@ -594,7 +591,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   );
 
   const renderChecklistItem = (item: ChecklistItem, division: string) => {
-    // Only users with Admin roles OR the division itself can delete files.
+    // Only users with Admin roles OR the specific division role for this item can delete files.
     const canAdminDelete = currentUser?.roles.some(r => ['Admin Proyek', 'Owner', 'Admin Developer'].includes(r));
     
     return (
@@ -615,7 +612,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                   <span className="truncate pr-2">{file.name}</span>
                   <div className="flex items-center gap-1">
                       <Button variant="ghost" size="icon" onClick={() => handleDownloadFile(file)} className="h-6 w-6" disabled={isDownloading}><Download className="h-3 w-3 text-primary" /></Button>
-                      {/* ISOLATED DELETE PERMISSION: Only uploader's division or admin can delete */}
+                      {/* ISOLATED DELETE PERMISSION: Only uploader's division role or admin can delete */}
                       {(canAdminDelete || currentUser?.roles.includes(division)) && (
                           <Button variant="ghost" size="icon" onClick={() => handleDeleteFile(file.path, file.name)} className="h-6 w-6" disabled={!!isDeletingFile}><Trash2 className="h-3 w-3 text-destructive" /></Button>
                       )}

@@ -19,7 +19,7 @@ import type { LeaveRequest } from '@/types/leave-request-types';
 import type { HolidayEntry } from '@/services/holiday-service';
 import Link from 'next/link';
 import { Calendar } from "@/components/ui/calendar";
-import { format, parseISO, startOfToday, isSameDay, addDays, isWithinInterval, endOfDay } from 'date-fns';
+import { format, parseISO, startOfToday, isSameDay, addDays, isWithinInterval, endOfDay, startOfDay } from 'date-fns';
 import { id as idLocale, enUS as enLocale } from 'date-fns/locale';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -127,12 +127,12 @@ export function DashboardPageClient({ initialData: _ }: { initialData: any }) {
   const { language } = useLanguage();
   const [data, setData] = useState<Awaited<ReturnType<typeof getDashboardData>> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isClient, setIsClient] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
   const [todayDate, setTodayDate] = useState<Date | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
-    setIsClient(true);
+    setHasMounted(true);
     const now = new Date();
     setTodayDate(now);
     setSelectedDate(now);
@@ -158,7 +158,7 @@ export function DashboardPageClient({ initialData: _ }: { initialData: any }) {
   const { projects = [], leaveRequests = [], holidays = [], allUsers = [], todaysAttendance = [], attendanceEnabled = false } = data || {};
 
   const { eventsByDate, upcomingEvents } = useMemo(() => {
-    if (!isClient) return { eventsByDate: {}, upcomingEvents: [] };
+    if (!hasMounted) return { eventsByDate: {}, upcomingEvents: [] };
     const eventMap: Record<string, UnifiedEvent[]> = {};
     const upcoming: UnifiedEvent[] = [];
     const today = startOfToday();
@@ -205,10 +205,10 @@ export function DashboardPageClient({ initialData: _ }: { initialData: any }) {
     });
 
     return { eventsByDate: eventMap, upcomingEvents: upcoming.sort((a,b) => a.date.getTime() - b.date.getTime()) };
-  }, [projects, leaveRequests, holidays, isClient]);
+  }, [projects, leaveRequests, holidays, hasMounted]);
 
   const attendanceSummary = useMemo(() => {
-    if (!isClient || !todayDate) return { isHoliday: false, holidayName: null, checkedIn: 0, onLeave: 0, notCheckedIn: 0 };
+    if (!hasMounted || !todayDate) return { isHoliday: false, holidayName: null, checkedIn: 0, onLeave: 0, notCheckedIn: 0 };
     const todayHoliday = holidays.find(h => isSameDay(parseISO(h.date), todayDate));
     if (todayHoliday) return { isHoliday: true, holidayName: todayHoliday.name, checkedIn: 0, onLeave: 0, notCheckedIn: 0 };
 
@@ -220,7 +220,7 @@ export function DashboardPageClient({ initialData: _ }: { initialData: any }) {
       onLeave: onLeaveTodayCount,
       notCheckedIn: Math.max(0, allUsers.length - todaysAttendance.length - onLeaveTodayCount),
     };
-  }, [allUsers, todaysAttendance, leaveRequests, holidays, isClient, todayDate]);
+  }, [allUsers, todaysAttendance, leaveRequests, holidays, hasMounted, todayDate]);
 
   const activeProjects = useMemo(() => projects.filter(p => p.status !== 'Completed' && p.status !== 'Canceled'), [projects]);
   
@@ -245,7 +245,7 @@ export function DashboardPageClient({ initialData: _ }: { initialData: any }) {
     return currentUser.roles.some(r => ['Owner', 'Admin Proyek', 'Admin Developer'].includes(r));
   }, [currentUser]);
 
-  if (isLoading || !isAuthHydrated || !isClient) return <DashboardSkeleton />;
+  if (isLoading || !isAuthHydrated || !hasMounted) return <DashboardSkeleton />;
 
   return (
       <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
