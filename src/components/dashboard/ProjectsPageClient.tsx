@@ -200,7 +200,10 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     const isParallelOrRevision = ['Pending Parallel Design Uploads', 'Pending Post-Sidang Revision'].includes(project.status);
     if (!isParallelOrRevision) return null;
 
-    // Perbaikan Profesional: Menamai item secara spesifik agar tidak tabrakan
+    /**
+     * PERBAIKAN FINAL: Nama item dibuat UNIK per divisi.
+     * Ini mencegah 'Gambar' Arsitek terdeteksi sebagai 'Gambar' Struktur.
+     */
     const requiredChecklists: ParallelUploadChecklist = {
         Arsitek: [
             { name: 'Gambar Arsitek', uploaded: false, files: [] },
@@ -233,6 +236,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             currentStatus[division] = checklistItems.map(item => {
                 const uniquePrefix = getUniqueKey(division, item.name);
                 
+                // Hanya cocokkan jika nama file fisik diawali dengan prefix unik yang tepat
                 const matchingFiles = projectFiles.filter(file => {
                     const fileNameOnDisk = getBaseName(file.path);
                     return fileNameOnDisk.startsWith(uniquePrefix);
@@ -362,6 +366,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     try {
         if (currentFiles.length > 0) {
+            // Gunakan kunci unik yang sama untuk prefix saat mengunggah
             const uniqueKeyPrefix = divisionForFile && itemName 
                 ? getUniqueKey(divisionForFile, itemName)
                 : "";
