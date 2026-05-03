@@ -1,3 +1,4 @@
+
 // src/app/api/upload-file/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { stat, mkdir, rename } from 'fs/promises';
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
         userId, 
         uploaderRole, 
         note, 
-        associatedChecklistItem, // Now receiving the uniqueKey: chkidx_...
+        associatedChecklistItem, 
         tempPath,
         originalFilename
     } = body;
@@ -39,8 +40,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Missing required finalization data.' }, { status: 400 });
     }
 
-    // Identify the prefix strictly
-    // associatedChecklistItem is already the Unique Key from the frontend
+    // associatedChecklistItem expected format: ___DIV_[div]_ITEM_[item]___
     const prefix = associatedChecklistItem ? `${associatedChecklistItem}` : "";
     
     // Sanitize the original filename for storage safely

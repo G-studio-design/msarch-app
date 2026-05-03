@@ -1,8 +1,5 @@
-'use client';
 
-/**
- * Version: 2.6.0 - Precise Identity Matching & Hydration Guard
- */
+'use client';
 
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
@@ -105,12 +102,12 @@ interface GroupedHistoryItem {
 const finalDocRequirements = ['Dokumen Final', 'Berita Acara', 'SKRD', 'Bukti Pembayaran', 'Ijin Terbit', 'Pelunasan', 'Tanda Terima'];
 
 /**
- * Strict Unique Identity Key Generation
- * Uses a double-underscore wrap to ensure no substring overlap (e.g., MEP vs MEP Engineer)
+ * TRIPLE UNDERSCORE IDENTITY KEY
+ * This is the most secure way to prevent overlap between divisions.
  */
 function getUniqueKey(division: string, itemName: string): string {
     const clean = (text: string) => text.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-    return `__CID_${clean(division)}_ITEM_${clean(itemName)}__`;
+    return `___DIV_${clean(division)}_ITEM_${clean(itemName)}___`;
 }
 
 interface UploadDialogState {
@@ -232,10 +229,8 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             currentStatus[division] = checklistItems.map(item => {
                 const uniquePrefix = getUniqueKey(division, item.name);
                 
-                // CRITICAL ISOLATION:
-                // Only files that actually start with the exact CID prefix are counted.
-                // We also check uploadedBy as a fallback for older files if prefix is missing,
-                // but the prefix is the primary source of truth for new files.
+                // ABSOLUTE ISOLATION:
+                // We match strictly by the triple-underscore prefix in the filename.
                 const matchingFiles = projectFiles.filter(file => {
                     const fileNameOnDisk = getBaseName(file.path);
                     return fileNameOnDisk.startsWith(uniquePrefix);
@@ -389,7 +384,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                 const formDataPayload: Record<string, string | null> = {
                   projectId: selectedProject.id,
                   userId: currentUser.id,
-                  // IMPORTANT: Tag the file metadata with the target division so it satisfies future visibility checks
                   uploaderRole: divisionForFile || actingRole || currentUser.roles[0],
                   note: currentDescription,
                   associatedChecklistItem: uniqueKey,
@@ -591,8 +585,8 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   );
 
   const renderChecklistItem = (item: ChecklistItem, division: string) => {
-    // Only users with Admin roles OR the specific division role for this item can delete files.
     const canAdminDelete = currentUser?.roles.some(r => ['Admin Proyek', 'Owner', 'Admin Developer'].includes(r));
+    const isOwnerOfColumn = currentUser?.roles.includes(division);
     
     return (
       <li key={`${division}-${item.name}`} className="flex text-sm p-2 border rounded-md gap-2 flex-col items-start">
@@ -601,7 +595,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             {item.uploaded ? <CheckCircle className="h-4 w-4 text-green-500" /> : <CircleIcon className="h-4 w-4 text-muted-foreground" />}
             <span className={cn("truncate font-medium", item.uploaded ? "text-foreground" : "text-muted-foreground")}>{item.name}</span>
           </div>
-          {currentUser?.roles.includes(division) && (
+          {isOwnerOfColumn && (
               <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => setUploadDialogState({ isOpen: true, item, division })} disabled={isSubmitting}><Upload className="h-3 w-3" /></Button>
           )}
         </div>
@@ -612,8 +606,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                   <span className="truncate pr-2">{file.name}</span>
                   <div className="flex items-center gap-1">
                       <Button variant="ghost" size="icon" onClick={() => handleDownloadFile(file)} className="h-6 w-6" disabled={isDownloading}><Download className="h-3 w-3 text-primary" /></Button>
-                      {/* ISOLATED DELETE PERMISSION: Only uploader's division role or admin can delete */}
-                      {(canAdminDelete || currentUser?.roles.includes(division)) && (
+                      {(canAdminDelete || isOwnerOfColumn) && (
                           <Button variant="ghost" size="icon" onClick={() => handleDeleteFile(file.path, file.name)} className="h-6 w-6" disabled={!!isDeletingFile}><Trash2 className="h-3 w-3 text-destructive" /></Button>
                       )}
                   </div>
