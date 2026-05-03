@@ -35,7 +35,9 @@ import {
   Circle as CircleIcon,
   Wrench,
   Check,
-  CalendarIcon
+  CalendarIcon,
+  Clock,
+  RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
