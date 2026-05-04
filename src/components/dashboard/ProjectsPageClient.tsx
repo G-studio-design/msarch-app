@@ -200,7 +200,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     const isParallelOrRevision = ['Pending Parallel Design Uploads', 'Pending Post-Sidang Revision'].includes(project.status);
     if (!isParallelOrRevision) return null;
 
-    // DEFINISI ITEM DENGAN NAMA UNIK UNTUK TIAP DIVISI
+    // DEFINISI ITEM DENGAN NAMA UNIK UNTUK TIAP DIVISI - SOLUSI FINAL TABRAKAN
     const requiredChecklists: ParallelUploadChecklist = {
         Arsitek: [
             { name: 'Gambar Arsitek', uploaded: false, files: [] },
@@ -227,11 +227,14 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     const currentStatus: ParallelUploadChecklist = {};
     const projectFiles = project.files || [];
 
-    (Object.keys(requiredChecklists) as (keyof ParallelUploadChecklist)[]).forEach(division => {
+    // FIX TYPESCRIPT ERROR: Gunakan keys eksplisit untuk iterasi
+    const divisionKeys: (keyof ParallelUploadChecklist)[] = ['Arsitek', 'Struktur', 'MEP'];
+    
+    divisionKeys.forEach(division => {
         const checklistItems = requiredChecklists[division];
         if (checklistItems) {
             currentStatus[division] = checklistItems.map(item => {
-                const uniquePrefix = getUniqueKey(division, item.name);
+                const uniquePrefix = getUniqueKey(String(division), item.name);
                 
                 // PENCARIAN KETAT: Harus diawali dengan uniquePrefix yang tepat
                 const matchingFiles = projectFiles.filter(file => {
