@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
         userId, 
         uploaderRole, 
         note, 
-        associatedChecklistItem, // Ini sekarang berisi prefix unik ___DIV_..._ITEM_...___
+        associatedChecklistItem, // Ini berisi ID UNIK ___ID..._ITEM_...___
         tempPath,
         originalFilename
     } = body;
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Missing required finalization data.' }, { status: 400 });
     }
 
-    // Gunakan prefix unik dari client untuk mengisolasi file secara fisik
+    // Gunakan prefix unik Identity Key secara mutlak pada penamaan file fisik
     const prefix = associatedChecklistItem || "";
     
     // Sanitasi nama asli agar aman disimpan
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     const base = path.basename(originalFilename, ext).toLowerCase().replace(/[^a-z0-9]/g, '_');
     const safeOriginalName = base + ext.toLowerCase();
 
-    // Nama file akhir di disk AKAN SELALU diawali dengan prefix unik divisi_item
+    // Nama file akhir di disk WAJIB diawali dengan Identity Key
     const finalFilenameOnDisk = `${prefix}${safeOriginalName}`;
 
     const projectSpecificDir = path.join(PROJECT_FILES_BASE_DIR, projectId);
@@ -56,11 +56,11 @@ export async function POST(req: NextRequest) {
     const tempFilePath = path.join(UPLOAD_TEMP_DIR, path.basename(tempPath));
     const finalFilePath = path.join(projectSpecificDir, finalFilenameOnDisk);
     
-    // Pindahkan file dari folder sementara ke folder proyek permanen
+    // Pindahkan file dari folder sementara ke folder proyek permanen di NAS
     await rename(tempFilePath, finalFilePath);
 
     const relativePath = `${projectId}/${finalFilenameOnDisk}`.replace(/\\/g, '/');
-    const historyNote = `File diunggah untuk item checklist. ${note ? `Catatan: ${note}`: ''}`;
+    const historyNote = `File diunggah untuk item checklist: "${prefix.replace(/___/g, ' ')}". ${note ? `Catatan: ${note}`: ''}`;
     
     const fileEntry = {
       name: originalFilename,
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     await addFilesToProject(projectId, [fileEntry], userId, historyNote);
 
     return NextResponse.json({
-        message: 'File successfully processed',
+        message: 'File successfully processed and locked to checklist',
         ...fileEntry
     });
 

@@ -103,12 +103,12 @@ interface GroupedHistoryItem {
 const finalDocRequirements = ['Dokumen Final', 'Berita Acara', 'SKRD', 'Bukti Pembayaran', 'Ijin Terbit', 'Pelunasan', 'Tanda Terima'];
 
 /**
- * TRIPLE UNDERSCORE IDENTITY KEY
- * Menghasilkan string unik yang menghubungkan divisi dan item checklist secara mutlak.
+ * TRIPLE UNDERSCORE IDENTITY KEY - VERSI FINAL
+ * Menghasilkan kode unik yang mengunci file ke divisi dan item tertentu secara fisik.
  */
 function getUniqueKey(division: string, itemName: string): string {
     const clean = (text: string) => text.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-    return `___DIV_${clean(division)}_ITEM_${clean(itemName)}___`;
+    return `___ID${clean(division)}_ITEM_${clean(itemName)}___`;
 }
 
 interface UploadDialogState {
@@ -200,10 +200,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     const isParallelOrRevision = ['Pending Parallel Design Uploads', 'Pending Post-Sidang Revision'].includes(project.status);
     if (!isParallelOrRevision) return null;
 
-    /**
-     * PERBAIKAN FINAL: Nama item dibuat UNIK per divisi.
-     * Ini mencegah 'Gambar' Arsitek terdeteksi sebagai 'Gambar' Struktur.
-     */
+    // NAMA ITEM DIUBAH MENJADI UNIK VISUAL DAN SISTEMIK
     const requiredChecklists: ParallelUploadChecklist = {
         Arsitek: [
             { name: 'Gambar Arsitek', uploaded: false, files: [] },
@@ -236,7 +233,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             currentStatus[division] = checklistItems.map(item => {
                 const uniquePrefix = getUniqueKey(division, item.name);
                 
-                // Hanya cocokkan jika nama file fisik diawali dengan prefix unik yang tepat
+                // FILTER KETAT: Hanya cocokkan jika nama file fisik diawali dengan prefix ID yang tepat
                 const matchingFiles = projectFiles.filter(file => {
                     const fileNameOnDisk = getBaseName(file.path);
                     return fileNameOnDisk.startsWith(uniquePrefix);
@@ -366,7 +363,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     try {
         if (currentFiles.length > 0) {
-            // Gunakan kunci unik yang sama untuk prefix saat mengunggah
+            // Gunakan kunci unik ID yang sama untuk prefix saat mengunggah ke API
             const uniqueKeyPrefix = divisionForFile && itemName 
                 ? getUniqueKey(divisionForFile, itemName)
                 : "";
