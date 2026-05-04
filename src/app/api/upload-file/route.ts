@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
         userId, 
         uploaderRole, 
         note, 
-        associatedChecklistItem, // Ini berisi ID UNIK ___ID..._ITEM_...___
+        associatedChecklistItem, // Ini berisi Identity Key unik: ___ID..._ITEM_...___
         tempPath,
         originalFilename
     } = body;
@@ -39,15 +39,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Missing required finalization data.' }, { status: 400 });
     }
 
-    // Gunakan prefix unik Identity Key secara mutlak pada penamaan file fisik
+    // IDENTITY KEY PREFIX: Mengunci file secara fisik ke item checklist tertentu
     const prefix = associatedChecklistItem || "";
     
-    // Sanitasi nama asli agar aman disimpan
+    // Sanitasi nama asli agar aman disimpan di Linux/NAS
     const ext = path.extname(originalFilename);
     const base = path.basename(originalFilename, ext).toLowerCase().replace(/[^a-z0-9]/g, '_');
     const safeOriginalName = base + ext.toLowerCase();
 
-    // Nama file akhir di disk WAJIB diawali dengan Identity Key
+    // Nama file akhir di disk WAJIB diawali dengan Identity Key untuk pemisahan mutlak
     const finalFilenameOnDisk = `${prefix}${safeOriginalName}`;
 
     const projectSpecificDir = path.join(PROJECT_FILES_BASE_DIR, projectId);

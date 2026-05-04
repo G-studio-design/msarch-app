@@ -103,8 +103,8 @@ interface GroupedHistoryItem {
 const finalDocRequirements = ['Dokumen Final', 'Berita Acara', 'SKRD', 'Bukti Pembayaran', 'Ijin Terbit', 'Pelunasan', 'Tanda Terima'];
 
 /**
- * TRIPLE UNDERSCORE IDENTITY KEY - VERSI FINAL
- * Menghasilkan kode unik yang mengunci file ke divisi dan item tertentu secara fisik.
+ * TRIPLE UNDERSCORE IDENTITY KEY
+ * Kunci unik yang menggabungkan divisi dan item untuk memisahkan file secara fisik di disk.
  */
 function getUniqueKey(division: string, itemName: string): string {
     const clean = (text: string) => text.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
@@ -200,7 +200,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     const isParallelOrRevision = ['Pending Parallel Design Uploads', 'Pending Post-Sidang Revision'].includes(project.status);
     if (!isParallelOrRevision) return null;
 
-    // NAMA ITEM DIUBAH MENJADI UNIK VISUAL DAN SISTEMIK
+    // DEFINISI ITEM DENGAN NAMA UNIK UNTUK TIAP DIVISI
     const requiredChecklists: ParallelUploadChecklist = {
         Arsitek: [
             { name: 'Gambar Arsitek', uploaded: false, files: [] },
@@ -233,7 +233,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             currentStatus[division] = checklistItems.map(item => {
                 const uniquePrefix = getUniqueKey(division, item.name);
                 
-                // FILTER KETAT: Hanya cocokkan jika nama file fisik diawali dengan prefix ID yang tepat
+                // PENCARIAN KETAT: Harus diawali dengan uniquePrefix yang tepat
                 const matchingFiles = projectFiles.filter(file => {
                     const fileNameOnDisk = getBaseName(file.path);
                     return fileNameOnDisk.startsWith(uniquePrefix);
@@ -363,7 +363,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     try {
         if (currentFiles.length > 0) {
-            // Gunakan kunci unik ID yang sama untuk prefix saat mengunggah ke API
+            // Gunakan kunci unik Identity Key untuk awalan nama file fisik
             const uniqueKeyPrefix = divisionForFile && itemName 
                 ? getUniqueKey(divisionForFile, itemName)
                 : "";
