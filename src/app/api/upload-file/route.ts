@@ -1,3 +1,4 @@
+
 // src/app/api/upload-file/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { stat, mkdir, rename } from 'fs/promises';
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
         userId, 
         uploaderRole, 
         note, 
-        associatedChecklistItem, // Ini berisi Identity Key unik: ___ID..._ITEM_...___
+        associatedChecklistItem,
         tempPath,
         originalFilename
     } = body;
@@ -39,15 +40,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Missing required finalization data.' }, { status: 400 });
     }
 
-    // IDENTITY KEY PREFIX: Mengunci file secara fisik ke item checklist tertentu
     const prefix = associatedChecklistItem || "";
-    
-    // Sanitasi nama asli agar aman disimpan di Linux/NAS
     const ext = path.extname(originalFilename);
     const base = path.basename(originalFilename, ext).toLowerCase().replace(/[^a-z0-9]/g, '_');
     const safeOriginalName = base + ext.toLowerCase();
 
-    // Nama file akhir di disk WAJIB diawali dengan Identity Key untuk pemisahan mutlak
+    // Physical prefixing on disk to isolate files
     const finalFilenameOnDisk = `${prefix}${safeOriginalName}`;
 
     const projectSpecificDir = path.join(PROJECT_FILES_BASE_DIR, projectId);
@@ -56,11 +54,10 @@ export async function POST(req: NextRequest) {
     const tempFilePath = path.join(UPLOAD_TEMP_DIR, path.basename(tempPath));
     const finalFilePath = path.join(projectSpecificDir, finalFilenameOnDisk);
     
-    // Pindahkan file dari folder sementara ke folder proyek permanen di NAS
     await rename(tempFilePath, finalFilePath);
 
     const relativePath = `${projectId}/${finalFilenameOnDisk}`.replace(/\\/g, '/');
-    const historyNote = `File diunggah untuk item checklist: "${prefix.replace(/___/g, ' ')}". ${note ? `Catatan: ${note}`: ''}`;
+    const historyNote = `File diunggah untuk: "${prefix.replace(/___/g, ' ')}". ${note ? `Catatan: ${note}`: ''}`;
     
     const fileEntry = {
       name: originalFilename,

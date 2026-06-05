@@ -166,16 +166,14 @@
         "division": "Owner",
         "action": "sudina (Owner) submitted for \"Admin Proyek: Pantau unggahan. Arsitek/Struktur/MEP: Unggah berkas Anda sesuai checklist.\"",
         "timestamp": "2026-05-04T02:55:39.977Z"
-      }
-    ],
-    "files": [
+      },
       {
-        "name": "dokumen final .pdf",
-        "path": "project_06_parallel_uploads/___IDarsitek_ITEM_gambararsitek___dokumen_final_.pdf",
-        "uploadedBy": "Arsitek",
-        "timestamp": "2026-05-04T02:55:38.860Z"
+        "division": "sudina",
+        "action": "Deleted file: \"dokumen final .pdf\"",
+        "timestamp": "2026-05-04T03:21:41.917Z"
       }
     ],
+    "files": [],
     "createdAt": "2025-10-06T06:00:00.000Z",
     "createdBy": "sudina",
     "surveyDetails": {

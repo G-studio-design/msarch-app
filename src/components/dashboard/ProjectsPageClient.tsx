@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -89,9 +90,6 @@ interface ChecklistItem {
 
 interface ParallelUploadChecklist {
     [key: string]: ChecklistItem[] | undefined;
-    Arsitek?: ChecklistItem[];
-    Struktur?: ChecklistItem[];
-    MEP?: ChecklistItem[];
 }
 
 interface GroupedHistoryItem {
@@ -102,10 +100,6 @@ interface GroupedHistoryItem {
 
 const finalDocRequirements = ['Dokumen Final', 'Berita Acara', 'SKRD', 'Bukti Pembayaran', 'Ijin Terbit', 'Pelunasan', 'Tanda Terima'];
 
-/**
- * TRIPLE UNDERSCORE IDENTITY KEY
- * Kunci unik yang menggabungkan divisi dan item untuk memisahkan file secara fisik di disk.
- */
 function getUniqueKey(division: string, itemName: string): string {
     const clean = (text: string) => text.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
     return `___ID${clean(division)}_ITEM_${clean(itemName)}___`;
@@ -200,50 +194,41 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     const isParallelOrRevision = ['Pending Parallel Design Uploads', 'Pending Post-Sidang Revision'].includes(project.status);
     if (!isParallelOrRevision) return null;
 
-    // DEFINISI ITEM DENGAN NAMA UNIK UNTUK TIAP DIVISI - SOLUSI FINAL TABRAKAN
-    const requiredChecklists: ParallelUploadChecklist = {
+    const requiredChecklists: Record<string, {name: string}[]> = {
         Arsitek: [
-            { name: 'Gambar Arsitek', uploaded: false, files: [] },
-            { name: 'Daftar Simak Arsitek', uploaded: false, files: [] },
-            { name: 'SpekTek Arsitek', uploaded: false, files: [] },
-            { name: 'RAP Arsitek', uploaded: false, files: [] }
+            { name: 'Gambar Arsitek' },
+            { name: 'Daftar Simak Arsitek' },
+            { name: 'SpekTek Arsitek' },
+            { name: 'RAP Arsitek' }
         ],
         Struktur: [
-            { name: 'Gambar Struktur', uploaded: false, files: [] },
-            { name: 'Analisa Laporan Struktur', uploaded: false, files: [] },
-            { name: 'Hammer Test Struktur', uploaded: false, files: [] },
-            { name: 'SpekTek Struktur', uploaded: false, files: [] },
-            { name: 'Daftar Simak Struktur', uploaded: false, files: [] }
+            { name: 'Gambar Struktur' },
+            { name: 'Analisa Laporan Struktur' },
+            { name: 'Hammer Test Struktur' },
+            { name: 'SpekTek Struktur' },
+            { name: 'Daftar Simak Struktur' }
         ],
         MEP: [
-            { name: 'Gambar MEP', uploaded: false, files: [] },
-            { name: 'Daftar Simak MEP', uploaded: false, files: [] },
-            { name: 'SpekTek MEP', uploaded: false, files: [] },
-            { name: 'RAP MEP', uploaded: false, files: [] },
-            { name: 'Laporan MEP', uploaded: false, files: [] }
+            { name: 'Gambar MEP' },
+            { name: 'Daftar Simak MEP' },
+            { name: 'SpekTek MEP' },
+            { name: 'RAP MEP' },
+            { name: 'Laporan MEP' }
         ],
     };
     
     const currentStatus: ParallelUploadChecklist = {};
     const projectFiles = project.files || [];
 
-    // FIX TYPESCRIPT ERROR: Gunakan keys eksplisit untuk iterasi
-    const divisionKeys: (keyof ParallelUploadChecklist)[] = ['Arsitek', 'Struktur', 'MEP'];
-    
-    divisionKeys.forEach(division => {
+    Object.keys(requiredChecklists).forEach(division => {
         const checklistItems = requiredChecklists[division];
         if (checklistItems) {
             currentStatus[division] = checklistItems.map(item => {
-                const uniquePrefix = getUniqueKey(String(division), item.name);
-                
-                // PENCARIAN KETAT: Harus diawali dengan uniquePrefix yang tepat
-                const matchingFiles = projectFiles.filter(file => {
-                    const fileNameOnDisk = getBaseName(file.path);
-                    return fileNameOnDisk.startsWith(uniquePrefix);
-                });
+                const uniquePrefix = getUniqueKey(division, item.name);
+                const matchingFiles = projectFiles.filter(file => getBaseName(file.path).startsWith(uniquePrefix));
 
                 return {
-                    ...item,
+                    name: item.name,
                     uploaded: matchingFiles.length > 0,
                     files: matchingFiles,
                 };
@@ -267,10 +252,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     return finalDocRequirements.map(reqName => {
         const uniquePrefix = getUniqueKey("final", reqName);
-        const matchingFiles = projectFiles.filter(file => {
-            const fileNameOnDisk = getBaseName(file.path);
-            return fileNameOnDisk.startsWith(uniquePrefix);
-        });
+        const matchingFiles = projectFiles.filter(file => getBaseName(file.path).startsWith(uniquePrefix));
         return {
             name: reqName,
             uploaded: matchingFiles.length > 0,
@@ -291,10 +273,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
       return projectsDict.invalidDate || "Invalid Date";
     }
   }, [language, projectsDict, hasMounted]);
-
-  const removeFile = (index: number) => {
-    setUploadedFiles(uploadedFiles.filter((_, i) => i !== index));
-  };
 
   const getStatusBadge = React.useCallback((status: string) => {
     if (!hasMounted || !status || !dashboardDict?.status) return <Skeleton className="h-5 w-20" />;
@@ -366,11 +344,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
 
     try {
         if (currentFiles.length > 0) {
-            // Gunakan kunci unik Identity Key untuk awalan nama file fisik
-            const uniqueKeyPrefix = divisionForFile && itemName 
-                ? getUniqueKey(divisionForFile, itemName)
-                : "";
-
+            const uniqueKeyPrefix = divisionForFile && itemName ? getUniqueKey(divisionForFile, itemName) : "";
             for (const file of currentFiles) {
                 const formDataPayload: Record<string, string | null> = {
                   projectId: selectedProject.id,
@@ -508,14 +482,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     return Object.values(parallelUploadChecklist).every(divItems => divItems?.every(item => item.uploaded));
   }, [parallelUploadChecklist]);
 
-  const translateHistoryAction = React.useCallback((action: string): string => {
-    if (!action || !projectsDict.workflowActions) return action || '';
-    let res = action;
-    const createdMatch = action.match(/^(Created Project with workflow|Proyek dibuat dengan alur kerja): (.*)$/i);
-    if (createdMatch) res = (projectsDict.workflowActions.createdProjectWithWorkflow || "Created Project with workflow: {workflowId}").replace('{workflowId}', createdMatch[2]);
-    return res;
-  }, [projectsDict.workflowActions]);
-
   const groupedAndSortedHistory = React.useMemo(() => {
     if (!selectedProject) return [];
     const grouped = new Map<string, GroupedHistoryItem>();
@@ -535,12 +501,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     return finalDocsChecklistStatus.every(item => item.uploaded);
   }, [finalDocsChecklistStatus]);
 
-  if (!hasMounted) return (
-      <div className="container mx-auto py-4 px-4 md:px-6">
-          <Card><CardHeader><Skeleton className="h-7 w-1/3 mb-2" /><Skeleton className="h-4 w-2/3" /></CardHeader>
-          <CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
-      </div>
-  );
+  if (!hasMounted) return <div className="container mx-auto py-4 px-4 md:px-6"><Card><CardHeader><Skeleton className="h-7 w-1/3 mb-2" /><Skeleton className="h-4 w-2/3" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card></div>;
 
   const renderProjectList = () => (
       <Card className="shadow-md">
@@ -598,7 +559,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
         {item.files.length > 0 && (
           <ul className="pl-6 pt-1 space-y-1 w-full border-t mt-1">
             {item.files.map(file => (
-                <li key={file.path} className="flex justify-between items-center text-xs text-muted-foreground hover:text-foreground">
+                <li key={file.path} className="flex justify-between items-center text-xs text-muted-foreground">
                   <span className="truncate pr-2">{file.name}</span>
                   <div className="flex items-center gap-1">
                       <Button variant="ghost" size="icon" onClick={() => handleDownloadFile(file)} className="h-6 w-6" disabled={isDownloading}><Download className="h-3 w-3 text-primary" /></Button>
@@ -621,7 +582,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             <Card className="shadow-md mb-6">
                 <CardHeader className="p-4 sm:p-6">
                   <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-                    <div className="flex-1 min-w-0"><CardTitle className="text-xl md:text-2xl">{project.title}</CardTitle><CardDescription className="mt-1" suppressHydrationWarning>{projectsDict.statusLabel}: {getStatusBadge(project.status)}</CardDescription></div>
+                    <div className="flex-1 min-w-0"><CardTitle className="text-xl md:text-2xl">{project.title}</CardTitle><CardDescription className="mt-1">{projectsDict.statusLabel}: {getStatusBadge(project.status)}</CardDescription></div>
                     <div className="text-left md:text-right w-full md:w-auto"><div className="text-sm font-medium">{projectsDict.progressLabel}</div><div className="flex items-center gap-2 mt-1"><Progress value={project.progress} className="w-full md:w-32 h-2" /><span className="text-xs text-muted-foreground font-medium">{project.progress}%</span></div></div>
                   </div>
                 </CardHeader>
@@ -631,7 +592,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                 <Card className="mb-6 shadow-md">
                     <CardHeader className="p-4 sm:p-6"><CardTitle>{projectsDict.fileChecklist.title}</CardTitle></CardHeader>
                     <CardContent className="p-4 sm:p-6 pt-0 grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {(Object.entries(parallelUploadChecklist)).map(([division, items]) => (
+                        {Object.entries(parallelUploadChecklist).map(([division, items]) => (
                             <div key={division}>
                                 <div className="flex justify-between items-center mb-2">
                                     <h4 className="font-semibold">{dashboardDict.status[division.toLowerCase().replace(/ /g, '') as keyof typeof dashboardDict.status] || division}</h4>
@@ -665,7 +626,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                                 <AccordionTrigger disabled={group.files.length === 0}>
                                     <div className="flex items-start gap-3 flex-1 text-left">
                                         <div className={`mt-1 h-3 w-3 rounded-full flex-shrink-0 ${index === 0 ? 'bg-primary animate-pulse' : 'bg-muted'}`}></div>
-                                        <div>{group.entries.map((e, ei) => (<p key={ei} className="text-sm font-medium">{translateHistoryAction(e.action)}</p>))}<p className="text-xs text-muted-foreground" suppressHydrationWarning>{formatTimestamp(group.timestamp)}</p></div>
+                                        <div>{group.entries.map((e, ei) => (<p key={ei} className="text-sm font-medium">{e.action}</p>))}<p className="text-xs text-muted-foreground">{formatTimestamp(group.timestamp)}</p></div>
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent>
@@ -690,7 +651,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
             </Card>
 
             {project.status === 'Pending Final Documents' && finalDocsChecklistStatus && (
-                <Card className="mb-6 shadow-md border-primary/20">
+                <Card className="mb-6 shadow-md">
                     <CardHeader className="p-4 sm:p-6"><CardTitle>Unggah Dokumen Akhir</CardTitle></CardHeader>
                     <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
                         <ul className="space-y-2">
@@ -769,9 +730,5 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     );
   }
 
-  return (
-    <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">
-      {selectedProject ? renderSelectedProjectDetail(selectedProject) : renderProjectList()}
-    </div>
-  );
+  return <div className="container mx-auto py-4 px-4 md:px-6 space-y-6">{selectedProject ? renderSelectedProjectDetail(selectedProject) : renderProjectList()}</div>;
 }
