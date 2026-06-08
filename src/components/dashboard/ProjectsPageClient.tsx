@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -33,7 +32,8 @@ import {
   Check,
   Clock,
   RefreshCw,
-  Send
+  Send,
+  Calendar as CalendarIcon
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
@@ -74,12 +74,14 @@ import { getDictionary } from '@/lib/translations';
 import { useAuth } from '@/context/AuthContext';
 import type { Project, UpdateProjectParams, FileEntry, WorkflowHistoryEntry } from '@/types/project-types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 
 const projectStatuses = [
     'Pending Offer', 'Pending Approval', 'Pending DP Invoice',
     'Pending Admin Files', 'Pending Survey Details', 'Survey Scheduled', 'Pending Architect Files', 'Pending Structure Files', 'Pending MEP Files',
     'Pending Scheduling', 'Scheduled', 'Pending Post-Sidang Revision', 'Pending Parallel Design Uploads',
-    'In Progress', 'Completed', 'Canceled', 'Pending Consultation Docs', 'Pending Review', 'Pending Final Documents', 'Pending Pelunasan Invoice', 'Pending Sidang Registration Proof'
+    'In Progress', 'Completed', 'Canceled', 'Pending Final Documents', 'Pending Pelunasan Invoice', 'Pending Sidang Registration Proof'
 ];
 
 interface ChecklistItem {
@@ -501,6 +503,10 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     return finalDocsChecklistStatus.every(item => item.uploaded);
   }, [finalDocsChecklistStatus]);
 
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
   if (!hasMounted) return <div className="container mx-auto py-4 px-4 md:px-6"><Card><CardHeader><Skeleton className="h-7 w-1/3 mb-2" /><Skeleton className="h-4 w-2/3" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card></div>;
 
   const renderProjectList = () => (
@@ -576,6 +582,9 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   };
 
   const renderSelectedProjectDetail = (project: Project) => {
+    const isMyTurn = currentUser?.roles.includes(project.assignedDivision?.trim());
+    const isSpecialStage = ['Pending Parallel Design Uploads', 'Pending Post-Sidang Revision', 'Pending Final Documents', 'Completed', 'Canceled'].includes(project.status);
+
     return (
         <>
             <Button variant="outline" onClick={() => {setSelectedProject(null); router.push('/dashboard/projects', { scroll: false });}} className="mb-4 w-full sm:w-auto"><ArrowLeft className="mr-2 h-4 w-4" />{projectsDict.backToList}</Button>
@@ -587,6 +596,98 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                   </div>
                 </CardHeader>
             </Card>
+
+            {isMyTurn && !isSpecialStage && (
+                <Card className="mb-6 shadow-md border-primary/20 bg-primary/5">
+                    <CardHeader className="p-4 sm:p-6 pb-2">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                            <Send className="h-5 w-5 text-primary" />
+                            {projectsDict.currentProjectActionsTitle}
+                        </CardTitle>
+                        <CardDescription className="text-primary/80 font-medium">
+                            {project.nextAction}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-4 sm:p-6 pt-2 space-y-4">
+                        {project.status === 'Pending Scheduling' ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="space-y-1">
+                                    <Label>{projectsDict.dateLabel}</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !scheduleDate && "text-muted-foreground")}>
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {scheduleDate ? format(scheduleDate, "PPP") : <span>Pilih tanggal</span>}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={scheduleDate} onSelect={setScheduleDate} initialFocus /></PopoverContent>
+                                    </Popover>
+                                </div>
+                                <div className="space-y-1"><Label>{projectsDict.timeLabel}</Label><Input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} /></div>
+                                <div className="space-y-1"><Label>{projectsDict.locationLabel}</Label><Input placeholder={projectsDict.locationPlaceholder} value={scheduleLocation} onChange={e => setScheduleLocation(e.target.value)} /></div>
+                            </div>
+                        ) : project.status === 'Pending Survey Details' ? (
+                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <Label>{projectsDict.dateLabel}</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !surveyDate && "text-muted-foreground")}>
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {surveyDate ? format(surveyDate, "PPP") : <span>Pilih tanggal</span>}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={surveyDate} onSelect={setSurveyDate} initialFocus /></PopoverContent>
+                                    </Popover>
+                                </div>
+                                <div className="space-y-1"><Label>{projectsDict.timeLabel}</Label><Input type="time" value={surveyTime} onChange={e => setSurveyTime(e.target.value)} /></div>
+                                <div className="col-span-full space-y-1"><Label>{projectsDict.descriptionLabel}</Label><Textarea placeholder={projectsDict.surveyDescriptionPlaceholder} value={surveyDescription} onChange={e => setSurveyDescription(e.target.value)} /></div>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="space-y-1">
+                                    <Label>{projectsDict.descriptionLabel}</Label>
+                                    <Textarea placeholder={projectsDict.descriptionPlaceholder.replace('{division}', String(project.assignedDivision))} value={description} onChange={e => setDescription(e.target.value)} />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label>{projectsDict.attachFilesLabel}</Label>
+                                    <Input type="file" multiple onChange={e => e.target.files && setUploadedFiles(Array.from(e.target.files))} />
+                                    {uploadedFiles.length > 0 && (
+                                        <div className="mt-2 text-xs space-y-1">
+                                            {uploadedFiles.map((f, i) => (
+                                                <div key={i} className="flex justify-between items-center p-1 bg-background border rounded">
+                                                    <span className="truncate">{f.name}</span>
+                                                    <Button variant="ghost" size="sm" className="h-5 w-5" onClick={() => removeFile(i)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </CardContent>
+                    <CardFooter className="p-4 sm:p-6 pt-0 flex flex-wrap gap-2">
+                        {project.status === 'Pending Approval' ? (
+                            <>
+                                <Button className="bg-green-600 hover:bg-green-700" onClick={() => handleDecision('approved')} disabled={isSubmitting}>Setujui</Button>
+                                <Button variant="outline" className="text-orange-600 border-orange-600 hover:bg-orange-50" onClick={() => handleDecision('revise_offer')} disabled={isSubmitting}>Minta Revisi</Button>
+                                <Button variant="destructive" onClick={() => handleDecision('rejected')} disabled={isSubmitting}>Batalkan</Button>
+                            </>
+                        ) : project.status === 'Scheduled' ? (
+                            <>
+                                <Button className="bg-green-600 hover:bg-green-700" onClick={() => handleDecision('completed')} disabled={isSubmitting}>Berhasil</Button>
+                                <Button variant="outline" className="text-orange-600 border-orange-600 hover:bg-orange-50" onClick={() => handleDecision('revise_after_sidang')} disabled={isSubmitting}>Perlu Revisi</Button>
+                                <Button variant="destructive" onClick={() => handleDecision('canceled_after_sidang')} disabled={isSubmitting}>Gagal</Button>
+                            </>
+                        ) : (
+                            <Button className="accent-teal" onClick={() => handleProgressSubmit(project.status === 'Pending Scheduling' ? 'scheduled' : 'submitted')} disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                {projectsDict.submitButton}
+                            </Button>
+                        )}
+                    </CardFooter>
+                </Card>
+            )}
 
             {(project.status === 'Pending Parallel Design Uploads' || project.status === 'Pending Post-Sidang Revision') && parallelUploadChecklist && (
                 <Card className="mb-6 shadow-md">
@@ -709,7 +810,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                           <div className="space-y-1 rounded-md border p-2">
                               {uploadedFiles.map((f, i) => (
                                   <div key={i} className="flex justify-between items-center text-xs p-1">
-                                      <span>{f.name}</span>
+                                      <span className="truncate flex-1 pr-2">{f.name}</span>
                                       <Button variant="ghost" size="sm" onClick={() => removeFile(i)} className="h-6 w-6" disabled={isSubmitting}>
                                           <Trash2 className="h-3 w-3 text-destructive" />
                                       </Button>
