@@ -1,4 +1,3 @@
-
 // src/app/api/upload-file/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { stat, mkdir, rename } from 'fs/promises';
@@ -40,6 +39,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Missing required finalization data.' }, { status: 400 });
     }
 
+    // Force unique prefix for physical file storage to prevent leakage
     const prefix = associatedChecklistItem || "";
     const ext = path.extname(originalFilename);
     const base = path.basename(originalFilename, ext).toLowerCase().replace(/[^a-z0-9]/g, '_');
