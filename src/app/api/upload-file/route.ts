@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Force unique prefix for physical file storage to prevent leakage
+    // The prefix format used is ___ID[division]_ITEM_[itemName]___
     const prefix = associatedChecklistItem || "";
     const ext = path.extname(originalFilename);
     const base = path.basename(originalFilename, ext).toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -57,7 +58,11 @@ export async function POST(req: NextRequest) {
     await rename(tempFilePath, finalFilePath);
 
     const relativePath = `${projectId}/${finalFilenameOnDisk}`.replace(/\\/g, '/');
-    const historyNote = `File diunggah untuk: "${prefix.replace(/___/g, ' ')}". ${note ? `Catatan: ${note}`: ''}`;
+    
+    // Clear the note if it's generic and we have a checklist item
+    const historyNote = prefix 
+        ? `File diunggah untuk checklist: "${prefix.replace(/___/g, '').replace(/ID|_ITEM_/g, ' ')}". ${note ? `Catatan: ${note}`: ''}`
+        : (note || `Unggahan administrasi tambahan.`);
     
     const fileEntry = {
       name: originalFilename,
@@ -68,7 +73,7 @@ export async function POST(req: NextRequest) {
     await addFilesToProject(projectId, [fileEntry], userId, historyNote);
 
     return NextResponse.json({
-        message: 'File successfully processed and locked to checklist',
+        message: 'File successfully processed',
         ...fileEntry
     });
 

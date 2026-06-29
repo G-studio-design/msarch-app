@@ -33,7 +33,8 @@ import {
   Clock,
   RefreshCw,
   Send,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  FilePlus2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
@@ -337,6 +338,20 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     }
   };
 
+  const handleFileSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+        const newFiles = Array.from(e.target.files);
+        // APPEND files instead of replacing
+        setUploadedFiles(prev => [...prev, ...newFiles]);
+        // Reset the input so the same file can be selected again if needed
+        e.target.value = '';
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleProgressSubmit = React.useCallback(async (actionTaken: string = 'submitted', filesToSubmit?: File[], descriptionForSubmit?: string, itemName?: string, divisionForFile?: string) => {
     if (!currentUser || !selectedProject) return;
 
@@ -503,9 +518,6 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
     return finalDocsChecklistStatus.every(item => item.uploaded);
   }, [finalDocsChecklistStatus]);
 
-  const removeFile = (index: number) => {
-    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
-  };
 
   if (!hasMounted) return <div className="container mx-auto py-4 px-4 md:px-6"><Card><CardHeader><Skeleton className="h-7 w-1/3 mb-2" /><Skeleton className="h-4 w-2/3" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card></div>;
 
@@ -584,6 +596,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
   const renderSelectedProjectDetail = (project: Project) => {
     const isMyTurn = currentUser?.roles.includes(project.assignedDivision?.trim());
     const isSpecialStage = ['Pending Parallel Design Uploads', 'Pending Post-Sidang Revision', 'Pending Final Documents', 'Completed', 'Canceled'].includes(project.status);
+    const canUploadAdmin = currentUser?.roles.some(r => ['Admin Proyek', 'Owner', 'Admin Developer'].includes(r));
 
     return (
         <>
@@ -651,7 +664,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                                 </div>
                                 <div className="space-y-1">
                                     <Label>{projectsDict.attachFilesLabel}</Label>
-                                    <Input type="file" multiple onChange={e => e.target.files && setUploadedFiles(Array.from(e.target.files))} />
+                                    <Input type="file" multiple onChange={handleFileSelection} />
                                     {uploadedFiles.length > 0 && (
                                         <div className="mt-2 text-xs space-y-1">
                                             {uploadedFiles.map((f, i) => (
@@ -685,6 +698,42 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                                 {projectsDict.submitButton}
                             </Button>
                         )}
+                    </CardFooter>
+                </Card>
+            )}
+
+            {canUploadAdmin && (
+                <Card className="mb-6 shadow-md border-dashed border-2">
+                    <CardHeader className="p-4 sm:p-6 pb-2">
+                        <CardTitle className="text-md flex items-center gap-2">
+                            <FilePlus2 className="h-5 w-5 text-muted-foreground" />
+                            Unggah Dokumen Administrasi Tambahan
+                        </CardTitle>
+                        <CardDescription>Gunakan bagian ini untuk mengunggah file administrasi umum kapan saja.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-4 sm:p-6 pt-2 space-y-4">
+                        <div className="space-y-1">
+                            <Label>Pilih File (Bisa pilih berkali-kali dari folder berbeda)</Label>
+                            <Input type="file" multiple onChange={handleFileSelection} />
+                            {uploadedFiles.length > 0 && (
+                                <div className="mt-2 text-xs space-y-1 bg-muted/30 p-2 rounded-md border">
+                                    <p className="font-semibold mb-1">Antrean Upload ({uploadedFiles.length} file):</p>
+                                    {uploadedFiles.map((f, i) => (
+                                        <div key={i} className="flex justify-between items-center p-1 bg-background border rounded">
+                                            <span className="truncate">{f.name}</span>
+                                            <Button variant="ghost" size="sm" className="h-5 w-5" onClick={() => removeFile(i)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <Textarea placeholder="Catatan untuk file administrasi tambahan ini..." value={description} onChange={e => setDescription(e.target.value)} />
+                    </CardContent>
+                    <CardFooter className="p-4 sm:p-6 pt-0">
+                        <Button variant="secondary" className="w-full sm:w-auto" onClick={() => handleProgressSubmit('submitted')} disabled={isSubmitting || uploadedFiles.length === 0}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Unggah Sekarang
+                        </Button>
                     </CardFooter>
                 </Card>
             )}
@@ -805,7 +854,7 @@ export default function ProjectsPageClient({ initialProjects }: ProjectsPageClie
                     <DialogHeader><DialogTitle>Unggah: {uploadDialogState.item?.name}</DialogTitle></DialogHeader>
                     <div className="space-y-4 py-4">
                       <Textarea placeholder="Catatan (opsional)..." value={description} onChange={e => setDescription(e.target.value)} disabled={isSubmitting}/>
-                      <Input type="file" multiple onChange={(e) => { if (e.target.files) setUploadedFiles(Array.from(e.target.files)); }} disabled={isSubmitting} />
+                      <Input type="file" multiple onChange={handleFileSelection} disabled={isSubmitting} />
                       {uploadedFiles.length > 0 && (
                           <div className="space-y-1 rounded-md border p-2">
                               {uploadedFiles.map((f, i) => (
